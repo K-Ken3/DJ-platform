@@ -73,7 +73,6 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [socketLive, setSocketLive] = useState(false);
   const [djName, setDjName] = useState('Dashboard');
-  const [djLogo, setDjLogo] = useState('');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -109,7 +108,6 @@ export default function AdminDashboardPage() {
     setRequests(statsData.requests || []);
     setEvents(statsData.events || []);
     if (statsData.dj?.name) setDjName(statsData.dj.name);
-    setDjLogo(statsData.dj?.logo || '');
   }, []);
 
   useEffect(() => {
@@ -387,12 +385,7 @@ export default function AdminDashboardPage() {
   const sidebarNav = (
     <>
       <div className="mb-6 flex items-center gap-3 px-1">
-        {djLogo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={djLogo} alt={djName} className="h-9 w-9 object-contain" />
-        ) : (
-          <Logo className="h-8 w-auto" />
-        )}
+        <Logo className="h-8 w-auto" />
         <div className="leading-tight">
           <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">DJ Admin</p>
           <p className="text-sm font-extrabold">{djName}</p>
@@ -473,12 +466,7 @@ export default function AdminDashboardPage() {
         <header className="sticky top-0 z-30 border-b border-zinc-200 bg-zinc-50/90 backdrop-blur lg:hidden dark:border-zinc-800 dark:bg-zinc-950/90">
           <div className="flex h-14 items-center justify-between gap-3 px-4">
             <div className="flex items-center gap-2.5">
-              {djLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={djLogo} alt={djName} className="h-7 w-7 object-contain" />
-              ) : (
-                <Logo className="h-7 w-auto" />
-              )}
+              <Logo className="h-7 w-auto" />
               <LayoutDashboard className="h-4 w-4 text-zinc-400" />
               <span className="text-sm font-extrabold">{djName}</span>
             </div>

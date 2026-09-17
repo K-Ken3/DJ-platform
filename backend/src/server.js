@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import http from 'http';
 import { mkdirSync } from 'fs';
@@ -14,35 +15,53 @@ import { initDb, get, all, run } from './db.js';
 import { seedDatabase } from './seed.js';
 
 const app = express();
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+const vercelOriginPattern = /^https:\/\/[a-z0-9-]+(-[a-z0-9-]+)?\.vercel\.app$/i;
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (config.allowedOrigins.includes(origin)) return true;
+  if (vercelOriginPattern.test(origin)) return true;
+  return false;
+}
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: config.allowedOrigins,
+    origin: (origin, callback) => {
+      callback(null, isAllowedOrigin(origin));
+    },
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     credentials: true,
   },
 });
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || config.allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      callback(null, isAllowedOrigin(origin));
+    },
+    credentials: true,
+  })
+);
+app.use(express.json({ limit: '2mb' }));
 
-    callback(new Error('Origin not allowed by CORS'));
-  },
-  credentials: true,
-}));
-app.use(express.json({ limit: '1mb' }));
-app.use((req, res, next) => {
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  next();
+const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });
+const adminLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again later.' },
 });
-
-const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
-const adminLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
 app.use('/api', publicLimiter);
 
 function generateToken(user) {
@@ -126,7 +145,7 @@ app.get('/api/health', (req, res) => {
 
 /* ----------------------------- AUTH ----------------------------- */
 
-app.post('/api/auth/login', adminLimiter, async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
@@ -166,7 +185,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 /* ----------------------------- REGISTRATION / PAYMENT ----------------------------- */
 
-app.post('/api/auth/register', adminLimiter, asyncHandler(async (req, res) => {
+app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
   const { name, email, password, phone } = req.body || {};
 
   if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -432,7 +451,7 @@ app.get('/api/events/:id/qr', authMiddleware, requireAdmin, async (req, res) => 
   const event = await get('SELECT * FROM events WHERE id = ? AND dj_id = ?', [req.params.id, dj.id]);
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
-  const url = `${config.frontendUrl}/request/${dj.slug}?event=${encodeURIComponent(event.event_code)}`;
+  const url = `${config.publicAppUrl}/request/${dj.slug}?event=${encodeURIComponent(event.event_code)}`;
   try {
     const qr = await QRCode.toDataURL(url);
     res.json({ url, qr });
@@ -443,7 +462,7 @@ app.get('/api/events/:id/qr', authMiddleware, requireAdmin, async (req, res) => 
 
 app.get('/api/dj/qr', authMiddleware, requireAdmin, async (req, res) => {
   const dj = await getDjForUser(req.user.id);
-  const url = `${config.frontendUrl}/request/${dj.slug}`;
+  const url = `${config.publicAppUrl}/request/${dj.slug}`;
   try {
     const qr = await QRCode.toDataURL(url);
     res.json({ url, qr });
