@@ -31,7 +31,7 @@ services:
     runtime: node
     rootDir: .
     plan: free
-    buildCommand: npm install && npm --prefix frontend run build
+    buildCommand: npm install --include=dev && npm --prefix frontend run build
     startCommand: npm --prefix frontend run start -- -p $PORT
     envVars:
       - key: NODE_ENV
