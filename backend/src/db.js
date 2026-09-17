@@ -1,7 +1,13 @@
 import sqlite3 from 'sqlite3';
+import { mkdirSync } from 'fs';
+import { dirname, resolve } from 'path';
 import { config } from './config.js';
 
 sqlite3.verbose();
+
+// The database is opened at import time, so ensure its directory exists first
+// (fresh clones and ephemeral hosting filesystems have no data/ directory).
+mkdirSync(dirname(resolve(config.databasePath)), { recursive: true });
 
 const db = new sqlite3.Database(config.databasePath);
 
