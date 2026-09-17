@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import http from 'http';
+import { mkdirSync } from 'fs';
+import { dirname } from 'path';
 import { Server } from 'socket.io';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -669,6 +671,7 @@ app.use((err, req, res, next) => {
 });
 
 async function startServer() {
+  mkdirSync(dirname(config.databasePath), { recursive: true });
   await initDb();
   await seedDatabase();
   server.listen(config.port, () => {

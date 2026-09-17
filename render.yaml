@@ -1,0 +1,46 @@
+# Render blueprint — deploys the full DJ Song Request Platform (backend API + frontend).
+# Create both services at once: https://render.com -> New -> Blueprint -> select this repo.
+services:
+  - type: web
+    name: dj-platform-api
+    runtime: node
+    rootDir: .
+    plan: free
+    buildCommand: npm install
+    startCommand: npm --prefix backend run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://dj-platform.onrender.com
+      - key: BACKEND_URL
+        value: https://dj-platform-api.onrender.com
+      - key: ALLOWED_ORIGINS
+        value: https://dj-platform.onrender.com,https://dj-platform-api.onrender.com
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_PATH
+        value: ./data/dj-platform.db
+      - key: MTN_MOMO_NUMBER
+        value: 0789630452
+      - key: MTN_MOMO_USSD
+        value: '*182*1*1*0789630452#'
+
+  - type: web
+    name: dj-platform
+    runtime: node
+    rootDir: .
+    plan: free
+    buildCommand: npm install && npm --prefix frontend run build
+    startCommand: npm --prefix frontend run start -- -p $PORT
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://dj-platform.onrender.com
+      - fromService:
+          name: dj-platform-api
+          type: web
+          envVarKey: NEXT_PUBLIC_BACKEND_URL
+    dependsOn:
+      - dj-platform-api
