@@ -24,7 +24,15 @@ services:
       - key: MTN_MOMO_NUMBER
         value: 0789630452
       - key: MTN_MOMO_USSD
-        value: '*182*1*1*0789630452#'
+        value: '*182*8*1*1540166*22000#'
+      - key: MOMO_ACCOUNT_NAME
+        value: Ken
+      - key: SUBSCRIPTION_FEE
+        value: '22000'
+      - key: SUBSCRIPTION_FEE_USD
+        value: '15'
+      - key: USD_RWF_RATE
+        value: '1469'
 
   - type: web
     name: dj-platform

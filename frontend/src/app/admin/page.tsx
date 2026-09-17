@@ -73,6 +73,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [socketLive, setSocketLive] = useState(false);
   const [djName, setDjName] = useState('Dashboard');
+  const [djLogo, setDjLogo] = useState('');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -102,12 +103,13 @@ export default function AdminDashboardPage() {
   const loadDashboard = useCallback(async () => {
     const [overviewData, statsData] = await Promise.all([
       api<{ overview: Overview }>('/api/admin/overview'),
-      api<{ requests: RequestItem[]; events: EventItem[]; dj: { name: string } }>('/api/admin/stats'),
+      api<{ requests: RequestItem[]; events: EventItem[]; dj: { name: string; logo?: string | null } }>('/api/admin/stats'),
     ]);
     setOverview(overviewData.overview);
     setRequests(statsData.requests || []);
     setEvents(statsData.events || []);
     if (statsData.dj?.name) setDjName(statsData.dj.name);
+    setDjLogo(statsData.dj?.logo || '');
   }, []);
 
   useEffect(() => {
@@ -316,13 +318,20 @@ export default function AdminDashboardPage() {
                   <div className="surface-2 p-4">
                     <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Membership fee</p>
                     <p className="mt-1 text-lg font-extrabold">
-                      {(registrationInfo?.subscription_fee ?? 5000).toLocaleString()} {registrationInfo?.currency || 'RWF'}
+                      ${registrationInfo?.subscription_fee_usd ?? 15} <span className="text-sm font-bold text-zinc-400">USD</span>
                     </p>
+                    <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                      ≈ {(registrationInfo?.subscription_fee ?? 22000).toLocaleString()} {registrationInfo?.currency || 'RWF'} to pay
+                    </p>
+                  </div>
+                  <div className="surface-2 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Account name</p>
+                    <p className="mt-1 text-base font-bold">{registrationInfo?.momo_account_name || 'Ken'}</p>
                   </div>
                   <div className="surface-2 flex items-center justify-between p-4">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">USSD code</p>
-                      <p className="mt-1 font-mono text-base font-bold">{registrationInfo?.mtn_momo_ussd || '*182*1*1*0789630452#'}</p>
+                      <p className="mt-1 font-mono text-base font-bold">{registrationInfo?.mtn_momo_ussd || '*182*8*1*1540166*22000#'}</p>
                     </div>
                     <button
                       type="button"
@@ -378,7 +387,12 @@ export default function AdminDashboardPage() {
   const sidebarNav = (
     <>
       <div className="mb-6 flex items-center gap-3 px-1">
-        <Logo className="h-8 w-auto" />
+        {djLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={djLogo} alt={djName} className="h-9 w-9 object-contain" />
+        ) : (
+          <Logo className="h-8 w-auto" />
+        )}
         <div className="leading-tight">
           <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">DJ Admin</p>
           <p className="text-sm font-extrabold">{djName}</p>
@@ -459,7 +473,12 @@ export default function AdminDashboardPage() {
         <header className="sticky top-0 z-30 border-b border-zinc-200 bg-zinc-50/90 backdrop-blur lg:hidden dark:border-zinc-800 dark:bg-zinc-950/90">
           <div className="flex h-14 items-center justify-between gap-3 px-4">
             <div className="flex items-center gap-2.5">
-              <Logo className="h-7 w-auto" />
+              {djLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={djLogo} alt={djName} className="h-7 w-7 object-contain" />
+              ) : (
+                <Logo className="h-7 w-auto" />
+              )}
               <LayoutDashboard className="h-4 w-4 text-zinc-400" />
               <span className="text-sm font-extrabold">{djName}</span>
             </div>

@@ -15,6 +15,7 @@ type Dj = {
 type TipSettings = {
   mtn_momo_number: string;
   mtn_momo_ussd: string;
+  momo_account_name: string;
   currency: string;
   suggested_tips: string[];
   tip_hint: string;
@@ -23,7 +24,8 @@ type TipSettings = {
 
 const fallbackTips: TipSettings = {
   mtn_momo_number: '0789630452',
-  mtn_momo_ussd: '*182*1*1*0789630452#',
+  mtn_momo_ussd: '*182*8*1*1540166*22000#',
+  momo_account_name: 'Ken',
   currency: 'RWF',
   suggested_tips: ['1000', '2000', '5000'],
   tip_hint: 'Send a tip via MTN Mobile Money to support live music.',
@@ -266,6 +268,11 @@ export default function RequestPage({
                   </p>
 
                   <div className="mt-5 space-y-4">
+                    <div className="surface-2 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Account name</p>
+                      <p className="mt-1 text-base font-bold">{tips.momo_account_name || 'Ken'}</p>
+                    </div>
+
                     <div className="surface-2 p-4">
                       <div className="flex items-center justify-between">
                         <div>

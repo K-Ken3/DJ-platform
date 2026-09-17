@@ -20,6 +20,10 @@ export async function seedDatabase() {
 
   if (djUser) {
     await run(`UPDATE users SET status = ? WHERE email = ?`, ['ACTIVE', 'dj@vaxino.com']);
+    await run(
+      `UPDATE djs SET logo = ? WHERE user_id = ? AND (logo IS NULL OR logo = '' OR logo LIKE '%images.unsplash.com%')`,
+      ['/vaxino-logo.png', djUser.id]
+    );
     await ensureSettings();
     return;
   }
@@ -46,7 +50,7 @@ export async function seedDatabase() {
         facebook: 'https://facebook.com/dj_vaxino',
         youtube: 'https://www.youtube.com/@Deejayvaxino',
       }),
-      'https://images.unsplash.com/photo-1496293455970-f8581aae0e3b?auto=format&fit=crop&w=800&q=80',
+      '/vaxino-logo.png',
     ]
   );
 
@@ -142,16 +146,21 @@ export async function seedDatabase() {
 async function ensureSettings() {
   const settings = [
     ['mtn_momo_number', '0789630452'],
-    ['mtn_momo_ussd', '*182*1*1*0789630452#'],
+    ['mtn_momo_ussd', '*182*8*1*1540166*22000#'],
+    ['momo_account_name', 'Ken'],
     ['currency', 'RWF'],
     ['suggested_tips', JSON.stringify(['1000', '2000', '5000', '10000'])],
     ['tip_hint', 'Send a tip via MTN Mobile Money to support live music.'],
-    ['subscription_fee', '5000'],
+    ['subscription_fee', '22000'],
+    ['subscription_fee_usd', '15'],
+    ['usd_rwf_rate', '1469'],
   ];
 
   for (const [key, value] of settings) {
     const existing = await get('SELECT id FROM app_settings WHERE key = ?', [key]);
-    if (!existing) {
+    if (existing) {
+      await run(`UPDATE app_settings SET value = ?, updated_at = ? WHERE key = ?`, [value, new Date().toISOString(), key]);
+    } else {
       await run(`INSERT INTO app_settings (key, value) VALUES (?, ?)`, [key, value]);
     }
   }

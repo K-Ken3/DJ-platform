@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { LogIn, Moon, Sun } from 'lucide-react';
+import { Home, LogIn, Moon, Sun } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 import { Logo } from '@/components/site/Logo';
@@ -48,14 +48,23 @@ export default function AdminLoginPage() {
           <Link href="/" className="flex items-center gap-2.5">
             <Logo className="h-8 w-auto" />
           </Link>
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label="Toggle theme"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xs border border-zinc-300 bg-white text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 rounded-xs border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-600 transition-colors hover:border-accent hover:text-accent dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+            >
+              <Home className="h-3.5 w-3.5" />
+              Home
+            </Link>
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label="Toggle theme"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xs border border-zinc-300 bg-white text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
 
         <div className="card card-pad">

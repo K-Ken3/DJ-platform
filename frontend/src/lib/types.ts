@@ -37,6 +37,7 @@ export type BlogPost = {
 export type AdminSettings = {
   mtn_momo_number: string;
   mtn_momo_ussd: string;
+  momo_account_name: string;
   currency: string;
   suggested_tips: string[];
   tip_hint: string;
@@ -133,7 +134,10 @@ export type SuperStats = {
 
 export type RegistrationInfo = {
   subscription_fee: number;
+  subscription_fee_usd: number;
+  usd_rwf_rate: number;
   currency: string;
   mtn_momo_number: string;
   mtn_momo_ussd: string;
+  momo_account_name: string;
 };

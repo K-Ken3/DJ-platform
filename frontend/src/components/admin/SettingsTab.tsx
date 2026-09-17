@@ -8,6 +8,7 @@ export function SettingsTab() {
   const [form, setForm] = useState({
     mtn_momo_number: '',
     mtn_momo_ussd: '',
+    momo_account_name: '',
     currency: '',
     suggested_tips: '',
     tip_hint: '',
@@ -23,6 +24,7 @@ export function SettingsTab() {
         setForm({
           mtn_momo_number: settings.mtn_momo_number || '',
           mtn_momo_ussd: settings.mtn_momo_ussd || '',
+          momo_account_name: settings.momo_account_name || '',
           currency: settings.currency || 'RWF',
           suggested_tips: (settings.suggested_tips || []).join(', '),
           tip_hint: settings.tip_hint || '',
@@ -42,6 +44,7 @@ export function SettingsTab() {
         body: JSON.stringify({
           mtn_momo_number: form.mtn_momo_number,
           mtn_momo_ussd: form.mtn_momo_ussd,
+          momo_account_name: form.momo_account_name,
           currency: form.currency,
           suggested_tips: form.suggested_tips.split(',').map((value) => value.trim()).filter(Boolean),
           tip_hint: form.tip_hint,
@@ -65,14 +68,18 @@ export function SettingsTab() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div>
           <label htmlFor="st-number">MTN Mobile Money number</label>
           <input id="st-number" type="text" value={form.mtn_momo_number} onChange={(event) => setForm((current) => ({ ...current, mtn_momo_number: event.target.value }))} placeholder="0789630452" />
         </div>
         <div>
           <label htmlFor="st-ussd">USSD code</label>
-          <input id="st-ussd" type="text" value={form.mtn_momo_ussd} onChange={(event) => setForm((current) => ({ ...current, mtn_momo_ussd: event.target.value }))} placeholder="*182*1*1*0789630452#" className="font-mono" />
+          <input id="st-ussd" type="text" value={form.mtn_momo_ussd} onChange={(event) => setForm((current) => ({ ...current, mtn_momo_ussd: event.target.value }))} placeholder="*182*8*1*1540166*22000#" className="font-mono" />
+        </div>
+        <div>
+          <label htmlFor="st-account-name">Account name</label>
+          <input id="st-account-name" type="text" value={form.momo_account_name} onChange={(event) => setForm((current) => ({ ...current, momo_account_name: event.target.value }))} placeholder="Ken" />
         </div>
       </div>
 

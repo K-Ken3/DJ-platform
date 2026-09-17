@@ -22,5 +22,9 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || 'dev-secret',
   databasePath: process.env.DATABASE_PATH || path.resolve(__dirname, '../data/dj-platform.db'),
   mtnMomoNumber: process.env.MTN_MOMO_NUMBER || '0789630452',
-  mtnMomoUssd: process.env.MTN_MOMO_USSD || '*182*1*1*0789630452#',
+  mtnMomoUssd: process.env.MTN_MOMO_USSD || '*182*8*1*1540166*22000#',
+  momoAccountName: process.env.MOMO_ACCOUNT_NAME || 'Ken',
+  subscriptionFee: Number(process.env.SUBSCRIPTION_FEE || 22000),
+  subscriptionFeeUsd: Number(process.env.SUBSCRIPTION_FEE_USD || 15),
+  usdRwfRate: Number(process.env.USD_RWF_RATE || 1469),
 };

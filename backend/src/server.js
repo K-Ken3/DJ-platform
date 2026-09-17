@@ -246,11 +246,17 @@ app.post('/api/dj/payment', authMiddleware, asyncHandler(async (req, res) => {
 
 app.get('/api/registration-info', asyncHandler(async (req, res) => {
   const settings = await getSettings();
+  const usdRate = Number(settings.usd_rwf_rate || config.usdRwfRate);
+  const feeUsd = Number(settings.subscription_fee_usd || config.subscriptionFeeUsd);
+  const feeRwf = Number(settings.subscription_fee || (Math.round((feeUsd * usdRate) / 500) * 500) || config.subscriptionFee);
   res.json({
-    subscription_fee: Number(settings.subscription_fee || 5000),
+    subscription_fee: feeRwf,
+    subscription_fee_usd: feeUsd,
+    usd_rwf_rate: usdRate,
     currency: settings.currency || 'RWF',
     mtn_momo_number: settings.mtn_momo_number || config.mtnMomoNumber,
     mtn_momo_ussd: settings.mtn_momo_ussd || config.mtnMomoUssd,
+    momo_account_name: settings.momo_account_name || config.momoAccountName,
   });
 }));
 
@@ -756,6 +762,7 @@ app.get('/api/tips', async (req, res) => {
     settings: {
       mtn_momo_number: settings.mtn_momo_number || config.mtnMomoNumber,
       mtn_momo_ussd: settings.mtn_momo_ussd || config.mtnMomoUssd,
+      momo_account_name: settings.momo_account_name || config.momoAccountName,
       currency: settings.currency || 'RWF',
       suggested_tips: settings.suggested_tips ? JSON.parse(settings.suggested_tips) : [],
       tip_hint: settings.tip_hint || '',
@@ -770,6 +777,7 @@ app.get('/api/admin/settings', authMiddleware, requireAdmin, async (req, res) =>
     settings: {
       mtn_momo_number: settings.mtn_momo_number || config.mtnMomoNumber,
       mtn_momo_ussd: settings.mtn_momo_ussd || config.mtnMomoUssd,
+      momo_account_name: settings.momo_account_name || config.momoAccountName,
       currency: settings.currency || 'RWF',
       suggested_tips: settings.suggested_tips ? JSON.parse(settings.suggested_tips) : [],
       tip_hint: settings.tip_hint || '',
@@ -778,13 +786,16 @@ app.get('/api/admin/settings', authMiddleware, requireAdmin, async (req, res) =>
 });
 
 app.patch('/api/admin/settings', authMiddleware, requireAdmin, asyncHandler(async (req, res) => {
-  const { mtn_momo_number, mtn_momo_ussd, currency, suggested_tips, tip_hint } = req.body || {};
+  const { mtn_momo_number, mtn_momo_ussd, momo_account_name, currency, suggested_tips, tip_hint } = req.body || {};
 
   if (typeof mtn_momo_number === 'string' && mtn_momo_number.trim()) {
     await setSetting('mtn_momo_number', mtn_momo_number.replace(/\s+/g, ''));
   }
   if (typeof mtn_momo_ussd === 'string' && mtn_momo_ussd.trim()) {
     await setSetting('mtn_momo_ussd', mtn_momo_ussd.trim());
+  }
+  if (typeof momo_account_name === 'string' && momo_account_name.trim()) {
+    await setSetting('momo_account_name', momo_account_name.trim());
   }
   if (typeof currency === 'string' && currency.trim()) {
     await setSetting('currency', currency.trim().toUpperCase());

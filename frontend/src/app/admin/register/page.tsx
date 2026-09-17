@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Clock, Copy, Moon, Phone, Sun, UserPlus } from 'lucide-react';
+import { CheckCircle2, Clock, Copy, Home, Moon, Phone, Sun, UserPlus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 import { Logo } from '@/components/site/Logo';
@@ -12,10 +12,13 @@ import type { RegistrationInfo } from '@/lib/types';
 type RegisterResponse = { token: string; user: { id: number; name: string; status: string }; dj: { slug: string } | null };
 
 const fallbackInfo: RegistrationInfo = {
-  subscription_fee: 5000,
+  subscription_fee: 22000,
+  subscription_fee_usd: 15,
+  usd_rwf_rate: 1469,
   currency: 'RWF',
   mtn_momo_number: '0789630452',
-  mtn_momo_ussd: '*182*1*1*0789630452#',
+  mtn_momo_ussd: '*182*8*1*1540166*22000#',
+  momo_account_name: 'Ken',
 };
 
 export default function AdminRegisterPage() {
@@ -88,14 +91,23 @@ export default function AdminRegisterPage() {
           <Link href="/" className="flex items-center gap-2.5">
             <Logo className="h-8 w-auto" />
           </Link>
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label="Toggle theme"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-xs border border-zinc-300 bg-white text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 rounded-xs border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-600 transition-colors hover:border-accent hover:text-accent dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+            >
+              <Home className="h-3.5 w-3.5" />
+              Home
+            </Link>
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label="Toggle theme"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xs border border-zinc-300 bg-white text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
 
         {phase === 'form' ? (
@@ -208,8 +220,18 @@ export default function AdminRegisterPage() {
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Membership fee</p>
                       <p className="mt-1 text-lg font-extrabold">
-                        {info.subscription_fee.toLocaleString()} {info.currency}
+                        ${info.subscription_fee_usd || 15} <span className="text-sm font-bold text-zinc-400">USD</span>
                       </p>
+                      <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                        ≈ {info.subscription_fee.toLocaleString()} {info.currency} to pay
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="surface-2 flex items-center justify-between p-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Account name</p>
+                      <p className="mt-1 text-base font-bold">{info.momo_account_name || 'Ken'}</p>
                     </div>
                   </div>
 

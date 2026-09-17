@@ -11,10 +11,13 @@ import type { PublicDj, RegistrationInfo } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 const fallbackInfo: RegistrationInfo = {
-  subscription_fee: 5000,
+  subscription_fee: 22000,
+  subscription_fee_usd: 15,
+  usd_rwf_rate: 1469,
   currency: 'RWF',
   mtn_momo_number: '0789630452',
-  mtn_momo_ussd: '*182*1*1*0789630452#',
+  mtn_momo_ussd: '*182*8*1*1540166*22000#',
+  momo_account_name: 'Ken',
 };
 
 async function getDjs(): Promise<PublicDj[]> {
@@ -193,13 +196,28 @@ export default async function HomePage() {
           <div className="card card-pad flex flex-col">
             <span className="pill pill-played w-fit">Membership</span>
             <p className="mt-5 text-4xl font-extrabold tracking-tight">
-              {info.subscription_fee.toLocaleString()} <span className="text-lg font-bold text-zinc-400">{info.currency}</span>
+              ${info.subscription_fee_usd || 15} <span className="text-lg font-bold text-zinc-400">USD</span>
+            </p>
+            <p className="mt-1 text-sm font-semibold text-zinc-500 dark:text-zinc-400">
+              ≈ {info.subscription_fee.toLocaleString()} {info.currency} to pay
             </p>
             <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
               One-time activation fee. Pay via MTN Mobile Money and our team verifies your account.
             </p>
 
             <dl className="mt-6 space-y-3 border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800">
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-zinc-500 dark:text-zinc-400">Membership fee</dt>
+                <dd className="font-semibold">${info.subscription_fee_usd || 15} ({(info.subscription_fee || 22000).toLocaleString()} {info.currency})</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-zinc-500 dark:text-zinc-400">Exchange rate</dt>
+                <dd className="font-semibold">1 USD ≈ {(info.usd_rwf_rate || 1469).toLocaleString()} {info.currency}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-zinc-500 dark:text-zinc-400">Account name</dt>
+                <dd className="font-semibold">{info.momo_account_name || 'Ken'}</dd>
+              </div>
               <div className="flex items-center justify-between gap-4">
                 <dt className="text-zinc-500 dark:text-zinc-400">MoMo number</dt>
                 <dd className="font-mono font-semibold">{info.mtn_momo_number}</dd>
