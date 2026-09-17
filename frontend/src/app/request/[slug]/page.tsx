@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Copy, Music2, Phone, Sun, Moon } from 'lucide-react';
+import { CalendarX, CheckCircle2, Copy, Music2, Phone, Sun, Moon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
@@ -10,6 +10,13 @@ type Dj = {
   slug: string;
   logo?: string | null;
   tagline?: string | null;
+};
+
+type DjEvent = {
+  id: number;
+  name: string;
+  event_code: string;
+  active: number;
 };
 
 type TipSettings = {
@@ -56,6 +63,7 @@ export default function RequestPage({
   const slug = params.slug;
   const { theme, toggle } = useTheme();
   const [dj, setDj] = useState<Dj | null>(null);
+  const [events, setEvents] = useState<DjEvent[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [tips, setTips] = useState<TipSettings>(fallbackTips);
   const [eventCode, setEventCode] = useState('');
@@ -71,8 +79,11 @@ export default function RequestPage({
     const queryEvent = typeof searchParams?.event === 'string' ? searchParams.event : '';
     setEventCode(queryEvent);
 
-    api<{ dj: Dj }>(`/api/dj/public/${encodeURIComponent(slug)}`)
-      .then((data) => setDj(data.dj))
+    api<{ dj: Dj; events: DjEvent[] }>(`/api/dj/public/${encodeURIComponent(slug)}`)
+      .then((data) => {
+        setDj(data.dj);
+        setEvents(data.events || []);
+      })
       .catch(() => setNotFound(true));
 
     api<{ settings: TipSettings }>(`/api/tips?slug=${encodeURIComponent(slug)}`)
@@ -134,6 +145,9 @@ export default function RequestPage({
   }
 
   const displayName = dj?.name || 'DJ';
+  const matchedEvent = eventCode ? events.find((event) => event.event_code === eventCode) : null;
+  const hasActiveEvent = eventCode ? Boolean(matchedEvent?.active) : events.some((event) => Boolean(event.active));
+  const eventEnded = Boolean(dj) && !hasActiveEvent;
 
   return (
     <main className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
@@ -148,10 +162,17 @@ export default function RequestPage({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-xs border border-emerald-300 bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Live
-            </span>
+            {eventEnded ? (
+              <span className="inline-flex items-center gap-1.5 rounded-xs border border-zinc-300 bg-zinc-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
+                Ended
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-xs border border-emerald-300 bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Live
+              </span>
+            )}
             <button
               type="button"
               onClick={toggle}
@@ -171,6 +192,21 @@ export default function RequestPage({
               <h1 className="text-2xl font-extrabold tracking-tight">DJ not available</h1>
               <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                 This DJ does not exist or has not been approved yet. Check the link and try again.
+              </p>
+              <a href="/" className="btn-primary mt-6">
+                Browse DJs
+              </a>
+            </div>
+          ) : eventEnded ? (
+            <div className="card card-pad flex flex-col items-center py-12 text-center">
+              <span className="flex h-14 w-14 items-center justify-center bg-zinc-500/10 text-zinc-500 dark:text-zinc-400">
+                <CalendarX className="h-8 w-8" />
+              </span>
+              <h1 className="mt-5 text-2xl font-extrabold tracking-tight">This event has ended</h1>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                {matchedEvent
+                  ? `${matchedEvent.name} is no longer accepting song requests.`
+                  : `${displayName} has no active event right now, so song requests are closed.`}
               </p>
               <a href="/" className="btn-primary mt-6">
                 Browse DJs
@@ -202,7 +238,7 @@ export default function RequestPage({
             </div>
           )}
 
-          {!notFound && status !== 'success' && (
+          {!notFound && !eventEnded && status !== 'success' && (
             <form onSubmit={submitRequest} className="card card-pad" aria-live="polite">
               <div>
                 <label htmlFor="song-name">Song name</label>

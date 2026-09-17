@@ -98,10 +98,10 @@ export function DjDirectory({ djs }: { djs: PublicDj[] }) {
               )}
 
               <div className="mt-auto pt-6">
-                <Link href={`/request/${dj.slug}`} className="btn-primary btn-block">
-                  <Music2 className="h-4 w-4" />
-                  Request a song
-                </Link>
+                <p className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
+                  <Music2 className="h-3.5 w-3.5" />
+                  Scan the event QR code to request a song
+                </p>
               </div>
             </article>
           ))}

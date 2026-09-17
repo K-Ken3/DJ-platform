@@ -108,10 +108,12 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
 
       <section className="border-t border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-          <h2 className="text-xl font-extrabold">Heard something you love?</h2>
-          <p className="mt-2 text-zinc-500 dark:text-zinc-400">Request it live right now and it lands on the booth.</p>
-          <Link href={`/request/${post.dj_slug || ''}`} className="btn-primary mt-5">
-            Request a Song
+          <h2 className="text-xl font-extrabold">Want this at your event?</h2>
+          <p className="mt-2 text-zinc-500 dark:text-zinc-400">
+            Song requests open when guests scan the event QR code — right from their phones.
+          </p>
+          <Link href="/#djs" className="btn-primary mt-5">
+            Explore DJs
           </Link>
         </div>
       </section>
