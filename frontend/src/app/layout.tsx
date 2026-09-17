@@ -5,14 +5,15 @@ import { Inter } from 'next/font/google';
 const inter = Inter({ subsets: ['latin'], variable: '--font-display' });
 
 export const metadata: Metadata = {
-  title: 'DJ Vaxino | Live Song Requests & Booking',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://dj-platform.onrender.com'),
+  title: 'DJLink | Find DJs, Request Songs Live & Book Events',
   description:
-    'Premium DJ portfolio, real-time song request platform, event booking, and MTN Mobile Money tipping for clubs, weddings, and parties.',
+    'DJLink is the marketplace for DJs. Discover DJs near you, send live song requests straight to the booth, book events, and tip via MTN Mobile Money. DJs can join and get paid.',
   openGraph: {
-    title: 'DJ Vaxino | Live Song Requests & Booking',
-    description: 'Request a song in real time, book the DJ, and tip via MTN Mobile Money.',
+    title: 'DJLink | Find DJs, Request Songs Live & Book Events',
+    description: 'Discover DJs, request songs in real time, and book events — all in one place.',
     type: 'website',
-    images: [{ url: '/logo.png', width: 515, height: 268, alt: 'DJ Vaxino' }],
+    images: [{ url: '/logo.png', width: 515, height: 268, alt: 'DJLink' }],
   },
 };
 

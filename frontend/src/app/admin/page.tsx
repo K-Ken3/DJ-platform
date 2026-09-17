@@ -1,7 +1,11 @@
 'use client';
 
 import {
+  Ban,
   CalendarDays,
+  CheckCircle2,
+  Clock,
+  Copy,
   FileText,
   Inbox,
   LayoutDashboard,
@@ -27,7 +31,7 @@ import { ProfileTab } from '@/components/admin/ProfileTab';
 import { SettingsTab } from '@/components/admin/SettingsTab';
 import { BACKEND_URL, api } from '@/lib/api';
 import { playNotificationSound } from '@/lib/sound';
-import type { EventItem, Overview, RequestItem } from '@/lib/types';
+import type { EventItem, Overview, RegistrationInfo, RequestItem, SubscriptionRecord } from '@/lib/types';
 
 type TabId = 'live' | 'history' | 'events' | 'blog' | 'profile' | 'settings' | 'messages';
 
@@ -73,6 +77,12 @@ export default function AdminDashboardPage() {
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [gate, setGate] = useState<null | { status: string; name: string }>(null);
+  const [subscription, setSubscription] = useState<SubscriptionRecord | null>(null);
+  const [registrationInfo, setRegistrationInfo] = useState<RegistrationInfo | null>(null);
+  const [reference, setReference] = useState('');
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [gateError, setGateError] = useState('');
 
   const pushToast = useCallback((title: string, body: string) => {
     const id = Date.now() + Math.random();
@@ -102,9 +112,26 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!token) return;
-    loadDashboard()
-      .catch(() => router.push('/admin/login'))
-      .finally(() => setLoading(false));
+    api<{ user: { role: string; status: string; name: string }; subscription: SubscriptionRecord | null }>('/api/auth/me')
+      .then(async (me) => {
+        if (me.user.role === 'SUPERADMIN') {
+          router.replace('/admin/super');
+          return;
+        }
+        if (me.user.status !== 'ACTIVE') {
+          setGate({ status: me.user.status, name: me.user.name });
+          setDjName(me.user.name);
+          setSubscription(me.subscription);
+          if (me.user.status === 'PENDING') {
+            api<RegistrationInfo>('/api/registration-info').then(setRegistrationInfo).catch(() => {});
+          }
+          setLoading(false);
+          return;
+        }
+        await loadDashboard();
+        setLoading(false);
+      })
+      .catch(() => router.push('/admin/login'));
   }, [token, loadDashboard, router]);
 
   useEffect(() => {
@@ -193,10 +220,157 @@ export default function AdminDashboardPage() {
     router.push('/admin/login');
   }
 
+  async function submitPayment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setGateError('');
+    try {
+      const data = await api<{ subscription: SubscriptionRecord }>('/api/dj/payment', {
+        method: 'POST',
+        body: JSON.stringify({ reference, amount: registrationInfo?.subscription_fee }),
+      });
+      setSubscription(data.subscription);
+      setShowPaymentForm(false);
+    } catch (err) {
+      setGateError(err instanceof Error ? err.message : 'Could not submit payment reference.');
+    }
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-zinc-500">Loading dashboard...</p>
+      </main>
+    );
+  }
+
+  if (gate) {
+    const pending = gate.status === 'PENDING';
+    const blocked = gate.status === 'REJECTED' || gate.status === 'SUSPENDED';
+    const paymentSent = subscription && subscription.status === 'SUBMITTED';
+
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-100 px-4 py-12 dark:bg-zinc-950">
+        <div className="w-full max-w-md">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <Logo className="h-8 w-auto" />
+              <div className="leading-tight">
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">DJ Admin</p>
+                <p className="text-sm font-extrabold">{gate.name}</p>
+              </div>
+            </div>
+            <button type="button" className="btn-ghost" onClick={logout}>
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="card card-pad">
+            {blocked ? (
+              <div className="text-center">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center bg-red-500/10 text-red-600 dark:text-red-400">
+                  <Ban className="h-8 w-8" />
+                </span>
+                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
+                  {gate.status === 'SUSPENDED' ? 'Account suspended' : 'Application not approved'}
+                </h1>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  Your DJ account is currently <span className="font-semibold">{gate.status.toLowerCase()}</span>. Please
+                  contact the DJLink team if you think this is a mistake.
+                </p>
+                <a href="/#contact" className="btn-primary mt-6">
+                  Contact support
+                </a>
+              </div>
+            ) : pending && paymentSent && !showPaymentForm ? (
+              <div className="text-center">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-8 w-8" />
+                </span>
+                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">Payment submitted</h1>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  Reference <span className="font-mono font-semibold">{subscription?.transaction_reference}</span> is
+                  being verified. Your account will be activated within 24 hours.
+                </p>
+                <div className="mt-6 flex flex-col gap-3">
+                  <button type="button" className="btn-outline" onClick={() => setShowPaymentForm(true)}>
+                    Update reference
+                  </button>
+                  <button type="button" className="btn-outline" onClick={logout}>
+                    Log out
+                  </button>
+                </div>
+              </div>
+            ) : pending ? (
+              <>
+                <span className="pill pill-new w-fit">
+                  <Clock className="h-3 w-3" />
+                  Pending approval
+                </span>
+                <h1 className="mt-4 text-2xl font-extrabold tracking-tight">Activate your account</h1>
+                <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+                  Pay the one-time membership with MTN Mobile Money, then submit the transaction reference for
+                  verification.
+                </p>
+
+                <div className="mt-6 space-y-3">
+                  <div className="surface-2 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Membership fee</p>
+                    <p className="mt-1 text-lg font-extrabold">
+                      {(registrationInfo?.subscription_fee ?? 5000).toLocaleString()} {registrationInfo?.currency || 'RWF'}
+                    </p>
+                  </div>
+                  <div className="surface-2 flex items-center justify-between p-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">USSD code</p>
+                      <p className="mt-1 font-mono text-base font-bold">{registrationInfo?.mtn_momo_ussd || '*182*1*1*0789630452#'}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-outline btn-sm"
+                      onClick={() => navigator.clipboard?.writeText(registrationInfo?.mtn_momo_ussd || '')}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                  <div className="surface-2 flex items-center justify-between p-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">MoMo number</p>
+                      <p className="mt-1 font-mono text-base font-bold">{registrationInfo?.mtn_momo_number || '0789630452'}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-outline btn-sm"
+                      onClick={() => navigator.clipboard?.writeText(registrationInfo?.mtn_momo_number || '')}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <form onSubmit={submitPayment} className="mt-6 grid gap-4">
+                  <div>
+                    <label htmlFor="gate-reference">Transaction reference</label>
+                    <input
+                      id="gate-reference"
+                      type="text"
+                      value={reference}
+                      onChange={(event) => setReference(event.target.value)}
+                      placeholder="e.g. MP240917.1234.A56789"
+                      required
+                      minLength={4}
+                    />
+                  </div>
+                  {gateError && <p className="rounded-xs border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">{gateError}</p>}
+                  <button type="submit" className="btn-primary btn-lg">
+                    Submit payment reference
+                  </button>
+                </form>
+              </>
+            ) : null}
+          </div>
+        </div>
       </main>
     );
   }

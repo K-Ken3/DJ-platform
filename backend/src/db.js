@@ -46,6 +46,7 @@ export function initDb() {
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'DJ',
+      status TEXT NOT NULL DEFAULT 'PENDING',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -138,12 +139,35 @@ export function initDb() {
       message TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      amount REAL,
+      currency TEXT NOT NULL DEFAULT 'RWF',
+      phone TEXT,
+      transaction_reference TEXT,
+      status TEXT NOT NULL DEFAULT 'SUBMITTED',
+      submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      verified_at TEXT,
+      verified_by INTEGER,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
   `;
 
   return new Promise((resolve, reject) => {
-    db.exec(schema, (err) => {
+    db.exec(schema, async (err) => {
       if (err) return reject(err);
-      resolve();
+      try {
+        // Migration for existing databases created before the multi-DJ update.
+        const cols = await all('PRAGMA table_info(users)');
+        if (!cols.some((c) => c.name === 'status')) {
+          await run("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDING'");
+        }
+        resolve();
+      } catch (migrationError) {
+        reject(migrationError);
+      }
     });
   });
 }

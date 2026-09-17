@@ -6,7 +6,7 @@ export function Logo({ className = 'h-8 w-auto' }: { className?: string }) {
       <img src="/logo.png" alt="" aria-hidden="true" className={`${className} dark:hidden`} draggable={false} />
       {/* White logo for dark pages */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo-white.png" alt="DJ Vaxino" className={`${className} hidden dark:block`} draggable={false} />
+      <img src="/logo-white.png" alt="DJLink" className={`${className} hidden dark:block`} draggable={false} />
     </span>
   );
 }

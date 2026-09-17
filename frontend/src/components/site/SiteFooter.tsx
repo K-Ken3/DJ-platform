@@ -11,21 +11,21 @@ export function SiteFooter() {
         </div>
 
         <nav className="flex flex-wrap items-center justify-center gap-4 text-zinc-500 dark:text-zinc-400">
-          <Link href="/request/dj-vaxino" className="hover:text-zinc-900 dark:hover:text-white">
-            Request a Song
+          <a href="#djs" className="hover:text-zinc-900 dark:hover:text-white">
+            Find a DJ
+          </a>
+          <a href="#how" className="hover:text-zinc-900 dark:hover:text-white">
+            How it works
+          </a>
+          <Link href="/admin/register" className="hover:text-zinc-900 dark:hover:text-white">
+            Join as a DJ
           </Link>
-          <a href="#about" className="hover:text-zinc-900 dark:hover:text-white">
-            About
-          </a>
-          <a href="#events" className="hover:text-zinc-900 dark:hover:text-white">
-            Events
-          </a>
-          <a href="#contact" className="hover:text-zinc-900 dark:hover:text-white">
-            Book
-          </a>
+          <Link href="/admin/login" className="hover:text-zinc-900 dark:hover:text-white">
+            DJ Login
+          </Link>
         </nav>
 
-        <p className="text-xs text-zinc-400 dark:text-zinc-600">&copy; {new Date().getFullYear()} Designed AlverLabs. All rights reserved.</p>
+        <p className="text-xs text-zinc-400 dark:text-zinc-600">&copy; {new Date().getFullYear()} DJLink. All rights reserved.</p>
       </div>
     </footer>
   );

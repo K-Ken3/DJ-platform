@@ -74,3 +74,66 @@ export type BookingMessage = {
   message?: string | null;
   created_at: string;
 };
+
+export type PublicDj = {
+  id: number;
+  name: string;
+  slug: string;
+  logo?: string | null;
+  bio?: string | null;
+  tagline?: string | null;
+  location?: string | null;
+  social_links?: Record<string, string> | null;
+  events?: { id: number; name: string; venue?: string | null; event_date?: string | null; event_code: string }[];
+};
+
+export type SubscriptionRecord = {
+  id: number;
+  user_id: number;
+  amount?: number | null;
+  currency: string;
+  phone?: string | null;
+  transaction_reference?: string | null;
+  status: 'SUBMITTED' | 'VERIFIED' | 'REJECTED';
+  submitted_at: string;
+  verified_at?: string | null;
+  verified_by?: number | null;
+};
+
+export type SuperDj = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  status: 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED';
+  created_at: string | null;
+  slug?: string | null;
+  logo?: string | null;
+  tagline?: string | null;
+  location?: string | null;
+  total_subscriptions: number;
+  verified_subscriptions: number;
+  latest_subscription?: SubscriptionRecord | null;
+};
+
+export type SuperStats = {
+  total_djs: number;
+  pending: number;
+  active: number;
+  rejected: number;
+  suspended: number;
+  events_total: number;
+  requests_total: number;
+  requests_today: number;
+  bookings_total: number;
+  subscriptions_total: number;
+  subscriptions_verified: number;
+  subscriptions_submitted: number;
+};
+
+export type RegistrationInfo = {
+  subscription_fee: number;
+  currency: string;
+  mtn_momo_number: string;
+  mtn_momo_ussd: string;
+};

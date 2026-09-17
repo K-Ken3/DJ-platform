@@ -7,10 +7,10 @@ import { ThemeToggle } from './ThemeToggle';
 import { Logo } from './Logo';
 
 const links = [
-  { href: '#about', label: 'About' },
-  { href: '#events', label: 'Events' },
-  { href: '#blog', label: 'Blog' },
-  { href: '#contact', label: 'Book' },
+  { href: '#djs', label: 'DJs' },
+  { href: '#how', label: 'How it works' },
+  { href: '#pricing', label: 'For DJs' },
+  { href: '#contact', label: 'Contact' },
 ];
 
 export function NavBar() {
@@ -19,7 +19,7 @@ export function NavBar() {
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200 bg-zinc-50/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" aria-label="DJ Vaxino home" className="flex items-center">
+        <Link href="/" aria-label="DJLink home" className="flex items-center">
           <Logo className="h-9 w-auto" />
         </Link>
 
@@ -33,8 +33,11 @@ export function NavBar() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Link href="/request/dj-vaxino" className="btn-primary hidden sm:inline-flex">
-            Request a Song
+          <Link href="/admin/login" className="btn-outline btn-sm hidden sm:inline-flex">
+            DJ Login
+          </Link>
+          <Link href="/admin/register" className="btn-primary hidden sm:inline-flex">
+            Join as a DJ
           </Link>
           <button
             type="button"
@@ -60,8 +63,11 @@ export function NavBar() {
                 {link.label}
               </a>
             ))}
-            <Link href="/request/dj-vaxino" className="btn-primary mt-2 w-full" onClick={() => setOpen(false)}>
-              Request a Song
+            <Link href="/admin/login" className="btn-outline mt-2 w-full" onClick={() => setOpen(false)}>
+              DJ Login
+            </Link>
+            <Link href="/admin/register" className="btn-primary mt-1 w-full" onClick={() => setOpen(false)}>
+              Join as a DJ
             </Link>
           </div>
         </nav>

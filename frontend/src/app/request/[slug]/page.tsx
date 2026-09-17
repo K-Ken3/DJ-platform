@@ -2,9 +2,8 @@
 
 import { CheckCircle2, Copy, Music2, Phone, Sun, Moon } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { BACKEND_URL, api } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
-import { Logo } from '@/components/site/Logo';
 
 type Dj = {
   name: string;
@@ -22,15 +21,28 @@ type TipSettings = {
   djName: string;
 };
 
-const fallbackDj: Dj = { name: 'DJ Vaxino', slug: 'dj-vaxino', tagline: 'What should I play next?' };
 const fallbackTips: TipSettings = {
   mtn_momo_number: '0789630452',
   mtn_momo_ussd: '*182*1*1*0789630452#',
   currency: 'RWF',
   suggested_tips: ['1000', '2000', '5000'],
   tip_hint: 'Send a tip via MTN Mobile Money to support live music.',
-  djName: 'DJ Vaxino',
+  djName: 'DJ',
 };
+
+function DjMark({ dj }: { dj: Dj }) {
+  if (dj.logo) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={dj.logo} alt={`${dj.name} logo`} className="h-9 w-9 object-contain" />
+    );
+  }
+  return (
+    <span className="flex h-9 w-9 items-center justify-center bg-accent/10 text-xs font-extrabold text-accent">
+      {dj.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || 'DJ'}
+    </span>
+  );
+}
 
 export default function RequestPage({
   params,
@@ -39,8 +51,10 @@ export default function RequestPage({
   params: { slug: string };
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
+  const slug = params.slug;
   const { theme, toggle } = useTheme();
   const [dj, setDj] = useState<Dj | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [tips, setTips] = useState<TipSettings>(fallbackTips);
   const [eventCode, setEventCode] = useState('');
   const [songName, setSongName] = useState('');
@@ -55,15 +69,15 @@ export default function RequestPage({
     const queryEvent = typeof searchParams?.event === 'string' ? searchParams.event : '';
     setEventCode(queryEvent);
 
-    api<{ dj: Dj | null }>('/api/dj/public')
-      .then((data) => setDj(data.dj || fallbackDj))
-      .catch(() => setDj(fallbackDj));
+    api<{ dj: Dj }>(`/api/dj/public/${encodeURIComponent(slug)}`)
+      .then((data) => setDj(data.dj))
+      .catch(() => setNotFound(true));
 
-    api<{ settings: TipSettings }>('/api/tips')
+    api<{ settings: TipSettings }>(`/api/tips?slug=${encodeURIComponent(slug)}`)
       .then((data) => setTips(data.settings))
       .catch(() => setTips(fallbackTips));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams?.event]);
+  }, [slug, searchParams?.event]);
 
   async function submitRequest(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,7 +94,7 @@ export default function RequestPage({
     try {
       await api<{ request: { requested_at: string } }>('/api/requests', {
         method: 'POST',
-        body: JSON.stringify({ songName: song, artistName: artistName.trim(), eventCode }),
+        body: JSON.stringify({ songName: song, artistName: artistName.trim(), eventCode, slug }),
       });
 
       setStatus('success');
@@ -117,7 +131,7 @@ export default function RequestPage({
     window.setTimeout(() => setCopied(null), 1600);
   }
 
-  const displayName = dj?.name || 'DJ Vaxino';
+  const displayName = dj?.name || 'DJ';
 
   return (
     <main className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
@@ -125,9 +139,9 @@ export default function RequestPage({
       <header className="border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto flex h-14 max-w-md items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
-            <Logo className="h-7 w-auto" />
+            {dj ? <DjMark dj={dj} /> : <span className="h-9 w-9 bg-zinc-200 dark:bg-zinc-800" />}
             <div className="leading-tight border-l border-zinc-200 dark:border-zinc-800 pl-2.5">
-              <span className="block text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">DJ</span>
+              <span className="block text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">Request a song</span>
               <span className="block text-sm font-extrabold">{displayName}</span>
             </div>
           </div>
@@ -150,7 +164,17 @@ export default function RequestPage({
 
       <div className="flex flex-1 items-center px-4 py-8">
         <div className="mx-auto w-full max-w-md">
-          {status === 'success' ? (
+          {notFound ? (
+            <div className="card card-pad py-12 text-center">
+              <h1 className="text-2xl font-extrabold tracking-tight">DJ not available</h1>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                This DJ does not exist or has not been approved yet. Check the link and try again.
+              </p>
+              <a href="/" className="btn-primary mt-6">
+                Browse DJs
+              </a>
+            </div>
+          ) : status === 'success' ? (
             <div className="card card-pad flex flex-col items-center py-12 text-center">
               <span className="flex h-14 w-14 items-center justify-center bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="h-8 w-8" />
@@ -176,7 +200,7 @@ export default function RequestPage({
             </div>
           )}
 
-          {status !== 'success' && (
+          {!notFound && status !== 'success' && (
             <form onSubmit={submitRequest} className="card card-pad" aria-live="polite">
               <div>
                 <label htmlFor="song-name">Song name</label>
@@ -205,8 +229,8 @@ export default function RequestPage({
                 />
               </div>
 
-              <button type="submit" className="btn-primary btn-lg btn-block mt-6" disabled={status === 'loading'}>
-                {status === 'loading' ? 'Sending request...' : 'Request'}
+              <button type="submit" className="btn-primary btn-lg btn-block mt-6" disabled={status === 'loading' || !dj}>
+                {!dj ? 'Loading...' : status === 'loading' ? 'Sending request...' : 'Request'}
               </button>
 
               <button type="button" onClick={handleTip} className="btn-outline btn-lg btn-block mt-3">
@@ -270,18 +294,18 @@ export default function RequestPage({
                   </div>
 
                   {tips.suggested_tips.length > 0 && (
-<div className="mt-5">
-                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      Suggested amounts ({tips.currency})
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {tips.suggested_tips.map((amount) => (
-                        <span key={amount} className="btn-outline btn-sm cursor-default">
-                          {Number(amount).toLocaleString()} {tips.currency}
-                        </span>
-                      ))}
+                    <div className="mt-5">
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                        Suggested amounts ({tips.currency})
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {tips.suggested_tips.map((amount) => (
+                          <span key={amount} className="btn-outline btn-sm cursor-default">
+                            {Number(amount).toLocaleString()} {tips.currency}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
                   )}
 
                   <p className="mt-5 flex items-start gap-2 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
@@ -296,7 +320,7 @@ export default function RequestPage({
       </div>
 
       <footer className="border-t border-zinc-200 py-4 text-center text-xs text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
-        Request a song, tip the DJ &middot; {displayName}
+        Request a song, tip the DJ &middot; {displayName} on DJLink
       </footer>
     </main>
   );

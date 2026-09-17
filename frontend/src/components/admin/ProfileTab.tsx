@@ -1,10 +1,40 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ImagePlus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { DjProfile } from '@/lib/types';
 
+async function fileToDataUrl(file: File, maxSize = 480): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Could not read the image file.'));
+    reader.readAsDataURL(file);
+  });
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Could not load the image file.'));
+    img.src = dataUrl;
+  });
+
+  const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) return dataUrl;
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', 0.82);
+}
+
 export function ProfileTab() {
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<DjProfile | null>(null);
   const [form, setForm] = useState({
     name: '',
@@ -21,6 +51,7 @@ export function ProfileTab() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [logoError, setLogoError] = useState('');
 
   useEffect(() => {
     api<{ user: unknown; dj: DjProfile | null }>('/api/auth/me')
@@ -83,6 +114,29 @@ export function ProfileTab() {
     }
   }
 
+  async function handleLogoFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setLogoError('');
+    if (!file.type.startsWith('image/')) {
+      setLogoError('Please choose an image file (PNG, JPG, or WEBP).');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setLogoError('Image is too large. Please choose a file under 4MB.');
+      return;
+    }
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setForm((current) => ({ ...current, logo: dataUrl }));
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : 'Could not process the image.');
+    }
+  }
+
   return (
     <form onSubmit={save} className="grid gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -92,8 +146,8 @@ export function ProfileTab() {
         </div>
         <div>
           <label htmlFor="pf-slug">Slug (request URL)</label>
-          <input id="pf-slug" type="text" value={form.slug} onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))} placeholder="dj-vaxino" />
-          <p className="mt-1 text-xs text-zinc-400">Requests live at /request/{form.slug || 'dj-vaxino'}</p>
+          <input id="pf-slug" type="text" value={form.slug} onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))} placeholder="your-dj-name" />
+          <p className="mt-1 text-xs text-zinc-400">Requests live at /request/{form.slug || 'your-dj-name'}</p>
         </div>
       </div>
 
@@ -111,8 +165,36 @@ export function ProfileTab() {
           <input id="pf-location" type="text" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} placeholder="Kigali, Rwanda" />
         </div>
         <div>
-          <label htmlFor="pf-logo">Logo image URL</label>
-          <input id="pf-logo" type="url" value={form.logo} onChange={(event) => setForm((current) => ({ ...current, logo: event.target.value }))} placeholder="https://..." />
+          <label>DJ logo</label>
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+              {form.logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.logo} alt="DJ logo preview" className="max-h-full max-w-full object-contain" />
+              ) : (
+                <ImagePlus className="h-5 w-5 text-zinc-400" />
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <input ref={fileRef} type="file" accept="image/*" onChange={handleLogoFile} className="hidden" />
+              <button type="button" className="btn-outline btn-sm" onClick={() => fileRef.current?.click()}>
+                <ImagePlus className="h-3.5 w-3.5" />
+                {form.logo ? 'Replace logo' : 'Upload logo'}
+              </button>
+              {form.logo && (
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm justify-start text-red-600 dark:text-red-400"
+                  onClick={() => setForm((current) => ({ ...current, logo: '' }))}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="mt-1.5 text-xs text-zinc-400">Shown on your request page and in the DJ directory.</p>
+          {logoError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{logoError}</p>}
         </div>
       </div>
 

@@ -17,6 +17,8 @@ type Post = {
   featured_image?: string | null;
   category?: string | null;
   published_at?: string | null;
+  dj_name?: string | null;
+  dj_slug?: string | null;
 };
 
 async function getPost(slug: string): Promise<Post | null> {
@@ -42,8 +44,8 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
         <div className="mx-auto max-w-3xl px-4 py-24 text-center sm:px-6">
           <h1 className="text-3xl font-extrabold">Post not found</h1>
           <p className="mt-3 text-zinc-500 dark:text-zinc-400">This post may have been unpublished or removed.</p>
-          <Link href="/#blog" className="btn-primary mt-8">
-            Back to the blog
+          <Link href="/" className="btn-primary mt-8">
+            Back to DJLink
           </Link>
         </div>
       </main>
@@ -59,9 +61,9 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
       <NavBar />
 
       <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6 md:py-16">
-        <Link href="/#blog" className="inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
+        <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
           <ArrowLeft className="h-4 w-4" />
-          All posts
+          Back to DJLink
         </Link>
 
         <header className="mt-8">
@@ -69,8 +71,9 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
             <span className="pill pill-new">{post.category}</span>
           )}
           <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight md:text-5xl">{post.title}</h1>
+          {post.dj_name && <p className="mt-3 text-sm font-semibold text-zinc-500 dark:text-zinc-400">By {post.dj_name}</p>}
           {published && (
-            <p className="mt-4 inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="mt-2 inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
               <CalendarDays className="h-4 w-4" />
               {published}
             </p>
@@ -107,7 +110,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
           <h2 className="text-xl font-extrabold">Heard something you love?</h2>
           <p className="mt-2 text-zinc-500 dark:text-zinc-400">Request it live right now and it lands on the booth.</p>
-          <Link href="/request/dj-vaxino" className="btn-primary mt-5">
+          <Link href={`/request/${post.dj_slug || ''}`} className="btn-primary mt-5">
             Request a Song
           </Link>
         </div>

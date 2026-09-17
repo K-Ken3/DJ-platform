@@ -1,15 +1,34 @@
 import bcrypt from 'bcryptjs';
 import { run, all, get } from './db.js';
 
+async function ensureSuperAdmin() {
+  const existing = await get('SELECT id FROM users WHERE email = ?', ['admin@djlink.app']);
+  if (existing) return;
+
+  const passwordHash = await bcrypt.hash('djadmin123', 10);
+  await run(
+    `INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)`,
+    ['DJLink Owner', 'admin@djlink.app', passwordHash, 'SUPERADMIN', 'ACTIVE']
+  );
+  console.log('Seeded SUPERADMIN: admin@djlink.app');
+}
+
 export async function seedDatabase() {
-  const existingUser = await get('SELECT id FROM users WHERE email = ?', ['dj@vaxino.com']);
-  if (existingUser) return;
+  await ensureSuperAdmin();
+
+  const djUser = await get('SELECT id FROM users WHERE email = ?', ['dj@vaxino.com']);
+
+  if (djUser) {
+    await run(`UPDATE users SET status = ? WHERE email = ?`, ['ACTIVE', 'dj@vaxino.com']);
+    await ensureSettings();
+    return;
+  }
 
   const passwordHash = await bcrypt.hash('djadmin123', 10);
 
   const user = await run(
-    `INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)`,
-    ['DJ Vaxino', 'dj@vaxino.com', passwordHash, 'ADMIN']
+    `INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)`,
+    ['DJ Vaxino', 'dj@vaxino.com', passwordHash, 'ADMIN', 'ACTIVE']
   );
 
   const dj = await run(
@@ -33,17 +52,17 @@ export async function seedDatabase() {
 
   const event1 = await run(
     `INSERT INTO events (dj_id, name, venue, event_date, event_code, active) VALUES (?, ?, ?, ?, ?, ?)`,
-    ['1', 'Saturday Night', 'Kigali Rooftop', '2026-09-20', 'party-2026', 1]
+    [dj.id, 'Saturday Night', 'Kigali Rooftop', '2026-09-20', 'party-2026', 1]
   );
 
   const event2 = await run(
     `INSERT INTO events (dj_id, name, venue, event_date, event_code, active) VALUES (?, ?, ?, ?, ?, ?)`,
-    ['1', 'Wedding Bliss', 'Mille Collines', '2026-10-03', 'wedding-oct', 0]
+    [dj.id, 'Wedding Bliss', 'Mille Collines', '2026-10-03', 'wedding-oct', 0]
   );
 
   const event3 = await run(
     `INSERT INTO events (dj_id, name, venue, event_date, event_code, active) VALUES (?, ?, ?, ?, ?, ?)`,
-    ['1', 'Club Residency', 'Kigali City, Nyabugogo', '2026-09-26', 'residency-sep', 0]
+    [dj.id, 'Club Residency', 'Kigali City, Nyabugogo', '2026-09-26', 'residency-sep', 0]
   );
 
   const samples = [
@@ -117,15 +136,23 @@ export async function seedDatabase() {
     ]
   );
 
+  await ensureSettings();
+}
+
+async function ensureSettings() {
   const settings = [
     ['mtn_momo_number', '0789630452'],
     ['mtn_momo_ussd', '*182*1*1*0789630452#'],
     ['currency', 'RWF'],
     ['suggested_tips', JSON.stringify(['1000', '2000', '5000', '10000'])],
     ['tip_hint', 'Send a tip via MTN Mobile Money to support live music.'],
+    ['subscription_fee', '5000'],
   ];
 
   for (const [key, value] of settings) {
-    await run(`INSERT INTO app_settings (key, value) VALUES (?, ?)`, [key, value]);
+    const existing = await get('SELECT id FROM app_settings WHERE key = ?', [key]);
+    if (!existing) {
+      await run(`INSERT INTO app_settings (key, value) VALUES (?, ?)`, [key, value]);
+    }
   }
 }

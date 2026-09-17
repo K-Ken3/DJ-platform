@@ -46,7 +46,7 @@ const adminLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: 
 app.use('/api', publicLimiter);
 
 function generateToken(user) {
-  return jwt.sign({ id: user.id, email: user.email, role: user.role }, config.jwtSecret, { expiresIn: '7d' });
+  return jwt.sign({ id: user.id, email: user.email, role: user.role, status: user.status }, config.jwtSecret, { expiresIn: '7d' });
 }
 
 function authMiddleware(req, res, next) {
@@ -67,18 +67,38 @@ function authMiddleware(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'ADMIN') {
-    return res.status(403).json({ error: 'Admin access required' });
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-  next();
+  return get('SELECT id, name, email, role, status FROM users WHERE id = ?', [req.user.id])
+    .then((user) => {
+      if (!user) return res.status(401).json({ error: 'Unauthorized' });
+      req.dbUser = user;
+      if (!['ADMIN', 'DJ'].includes(user.role) || user.status !== 'ACTIVE') {
+        return res.status(403).json({ error: 'Your account needs approval before you can do this.' });
+      }
+      next();
+    })
+    .catch(next);
+}
+
+function requireSuperAdmin(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  return get('SELECT id, name, email, role, status FROM users WHERE id = ?', [req.user.id])
+    .then((user) => {
+      if (!user || user.role !== 'SUPERADMIN' || user.status !== 'ACTIVE') {
+        return res.status(403).json({ error: 'SuperAdmin access required' });
+      }
+      req.dbUser = user;
+      next();
+    })
+    .catch(next);
 }
 
 async function getDjForUser(userId) {
   return await get('SELECT * FROM djs WHERE user_id = ?', [userId]);
-}
-
-async function getDjProfile(slug = 'dj-vaxino') {
-  return await get('SELECT * FROM djs WHERE slug = ?', [slug]);
 }
 
 async function getSettings() {
@@ -122,16 +142,20 @@ app.post('/api/auth/login', adminLimiter, async (req, res) => {
   const token = generateToken(user);
   res.json({
     token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    user: { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status },
     dj: dj ? { id: dj.id, name: dj.name, slug: dj.slug, logo: dj.logo, tagline: dj.tagline } : null,
   });
 });
 
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
-  const user = await get('SELECT id, name, email, role FROM users WHERE id = ?', [req.user.id]);
+  const user = await get('SELECT id, name, email, role, status FROM users WHERE id = ?', [req.user.id]);
   const dj = await getDjForUser(req.user.id);
+  const subscription = user
+    ? await get('SELECT * FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 1', [user.id])
+    : null;
   res.json({
     user,
+    subscription,
     dj: dj ? { id: dj.id, name: dj.name, slug: dj.slug, logo: dj.logo, tagline: dj.tagline, location: dj.location, social_links: dj.social_links } : null,
   });
 });
@@ -140,15 +164,139 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
-/* ----------------------------- PUBLIC DJ / WEBSITE ----------------------------- */
+/* ----------------------------- REGISTRATION / PAYMENT ----------------------------- */
 
-app.get('/api/dj/profile', async (req, res) => {
-  const profile = await getDjProfile();
+app.post('/api/auth/register', adminLimiter, asyncHandler(async (req, res) => {
+  const { name, email, password, phone } = req.body || {};
+
+  if (!name || typeof name !== 'string' || name.trim().length < 2) {
+    return res.status(400).json({ error: 'Please enter your full name.' });
+  }
+  if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+  if (!password || typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const exists = await get('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
+  if (exists) {
+    return res.status(409).json({ error: 'An account with this email already exists.' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const user = await run(
+    `INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)`,
+    [name.trim(), normalizedEmail, passwordHash, 'DJ', 'PENDING']
+  );
+
+  const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'dj';
+  let slug = base;
+  for (let i = 1; ; i++) {
+    const conflict = await get('SELECT id FROM djs WHERE slug = ?', [slug]);
+    if (!conflict) break;
+    slug = `${base}-${i}`;
+  }
+
+  await run(
+    `INSERT INTO djs (user_id, name, slug, location, social_links) VALUES (?, ?, ?, ?, ?)`,
+    [user.id, name.trim(), slug, null, JSON.stringify({})]
+  );
+
+  const dj = await getDjForUser(user.id);
+  const token = generateToken({ id: user.id, email: normalizedEmail, role: 'DJ', status: 'PENDING' });
+  res.status(201).json({
+    success: true,
+    token,
+    user: { id: user.id, name: name.trim(), email: normalizedEmail, role: 'DJ', status: 'PENDING' },
+    dj,
+  });
+}));
+
+app.post('/api/dj/payment', authMiddleware, asyncHandler(async (req, res) => {
+  const { reference, phone, amount } = req.body || {};
+  const ref = String(reference || '').trim();
+  if (ref.length < 4) {
+    return res.status(400).json({ error: 'Please enter the transaction reference you received from MTN Mobile Money.' });
+  }
+
+  const me = await get('SELECT id, role FROM users WHERE id = ?', [req.user.id]);
+  if (!me || !['DJ', 'ADMIN'].includes(me.role)) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const existing = await get('SELECT id FROM subscriptions WHERE user_id = ? AND status = ?', [me.id, 'SUBMITTED']);
+  if (existing) {
+    await run(
+      `UPDATE subscriptions SET transaction_reference = ?, phone = COALESCE(?, phone), amount = COALESCE(?, amount), submitted_at = ? WHERE id = ?`,
+      [ref, phone || null, amount ? Number(amount) : null, new Date().toISOString(), existing.id]
+    );
+    const updated = await get('SELECT * FROM subscriptions WHERE id = ?', [existing.id]);
+    return res.json({ subscription: updated });
+  }
+
+  const sub = await run(
+    `INSERT INTO subscriptions (user_id, amount, currency, phone, transaction_reference, status) VALUES (?, ?, ?, ?, ?, ?)`,
+    [me.id, amount ? Number(amount) : null, 'RWF', phone || null, ref, 'SUBMITTED']
+  );
+  const created = await get('SELECT * FROM subscriptions WHERE id = ?', [sub.id]);
+  res.status(201).json({ subscription: created });
+}));
+
+app.get('/api/registration-info', asyncHandler(async (req, res) => {
   const settings = await getSettings();
   res.json({
-    profile,
-    settings,
+    subscription_fee: Number(settings.subscription_fee || 5000),
+    currency: settings.currency || 'RWF',
+    mtn_momo_number: settings.mtn_momo_number || config.mtnMomoNumber,
+    mtn_momo_ussd: settings.mtn_momo_ussd || config.mtnMomoUssd,
   });
+}));
+
+/* ----------------------------- PUBLIC DJ / WEBSITE ----------------------------- */
+
+app.get('/api/djs/public', async (req, res) => {
+  const djs = await all(
+    `SELECT d.id, d.name, d.slug, d.logo, d.bio, d.tagline, d.location, d.social_links, d.created_at, u.status
+     FROM djs d JOIN users u ON u.id = d.user_id
+     WHERE u.role IN ('ADMIN', 'DJ') AND u.status = 'ACTIVE'
+     ORDER BY d.created_at ASC`
+  );
+  for (const dj of djs) {
+    if (dj.social_links) {
+      try { dj.social_links = JSON.parse(dj.social_links); } catch { dj.social_links = {}; }
+    } else {
+      dj.social_links = {};
+    }
+    dj.events = await all(
+      'SELECT id, name, venue, event_date, event_code FROM events WHERE dj_id = ? AND active = 1 ORDER BY created_at DESC',
+      [dj.id]
+    );
+  }
+  res.json({ djs });
+});
+
+app.get('/api/dj/public/:slug', async (req, res) => {
+  const dj = await get(
+    `SELECT d.*, u.role, u.status FROM djs d JOIN users u ON u.id = d.user_id WHERE d.slug = ?`,
+    [req.params.slug]
+  );
+  if (!dj || !['ADMIN', 'DJ'].includes(dj.role) || dj.status !== 'ACTIVE') {
+    return res.status(404).json({ error: 'DJ not found' });
+  }
+  const events = await all(
+    `SELECT e.*, (SELECT COUNT(*) FROM song_requests WHERE event_id = e.id) AS request_count
+     FROM events e WHERE e.dj_id = ? ORDER BY e.created_at DESC LIMIT 6`,
+    [dj.id]
+  );
+  const posts = await all(
+    `SELECT id, title, slug, excerpt, featured_image, category, published_at FROM blog_posts
+     WHERE dj_id = ? AND status = 'PUBLISHED' ORDER BY published_at DESC LIMIT 3`,
+    [dj.id]
+  );
+  const settings = await getSettings();
+  res.json({ dj, events, posts, settings });
 });
 
 app.patch('/api/dj/profile', authMiddleware, requireAdmin, asyncHandler(async (req, res) => {
@@ -177,7 +325,11 @@ app.patch('/api/dj/profile', authMiddleware, requireAdmin, asyncHandler(async (r
 }));
 
 app.get('/api/dj/public', async (req, res) => {
-  const dj = await getDjProfile();
+  const dj = await get(
+    `SELECT d.*, u.role, u.status FROM djs d JOIN users u ON u.id = d.user_id
+     WHERE u.role IN ('ADMIN', 'DJ') AND u.status = 'ACTIVE' ORDER BY d.created_at ASC LIMIT 1`
+  );
+  if (!dj) return res.status(404).json({ error: 'DJ not found' });
   const events = await all(
     `SELECT e.*, (SELECT COUNT(*) FROM song_requests WHERE event_id = e.id) AS request_count
      FROM events e WHERE e.dj_id = ? ORDER BY e.created_at DESC LIMIT 6`,
@@ -294,7 +446,7 @@ app.get('/api/dj/qr', authMiddleware, requireAdmin, async (req, res) => {
 /* ----------------------------- REQUESTS ----------------------------- */
 
 app.post('/api/requests', async (req, res) => {
-  const { songName, artistName, eventCode } = req.body || {};
+  const { songName, artistName, eventCode, slug } = req.body || {};
   const song = (songName || '').trim();
   const artist = (artistName || '').trim();
 
@@ -306,8 +458,16 @@ app.post('/api/requests', async (req, res) => {
     return res.status(400).json({ error: 'Artist name is too long.' });
   }
 
-  const dj = await getDjProfile();
-  if (!dj) return res.status(404).json({ error: 'DJ profile not found.' });
+  const djSlug = String(slug || '').trim();
+  const dj = djSlug
+    ? await get('SELECT d.*, u.role, u.status FROM djs d JOIN users u ON u.id = d.user_id WHERE d.slug = ?', [djSlug])
+    : await get(
+        `SELECT d.*, u.role, u.status FROM djs d JOIN users u ON u.id = d.user_id
+         WHERE u.role IN ('ADMIN', 'DJ') AND u.status = 'ACTIVE' ORDER BY d.created_at ASC LIMIT 1`
+      );
+  if (!dj || !['ADMIN', 'DJ'].includes(dj.role) || dj.status !== 'ACTIVE') {
+    return res.status(404).json({ error: 'DJ profile not found.' });
+  }
 
   const event = eventCode
     ? await get('SELECT * FROM events WHERE dj_id = ? AND event_code = ? AND active = 1', [dj.id, eventCode])
@@ -474,11 +634,123 @@ app.get('/api/admin/bookings', authMiddleware, requireAdmin, async (req, res) =>
   res.json({ bookings });
 });
 
+/* ----------------------------- SUPERADMIN ----------------------------- */
+
+app.get('/api/super/stats', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const counts = await get(
+    `SELECT
+       COUNT(*) AS total_djs,
+       COUNT(CASE WHEN status = 'PENDING' THEN 1 END) AS pending,
+       COUNT(CASE WHEN status = 'ACTIVE' THEN 1 END) AS active,
+       COUNT(CASE WHEN status = 'REJECTED' THEN 1 END) AS rejected,
+       COUNT(CASE WHEN status = 'SUSPENDED' THEN 1 END) AS suspended
+     FROM users WHERE role IN ('ADMIN', 'DJ')`
+  );
+  const eventCount = await get('SELECT COUNT(*) AS n FROM events');
+  const requestStats = await get(
+    `SELECT
+       COUNT(*) AS total_requests,
+       COUNT(CASE WHEN datetime(requested_at) >= datetime('now', 'localtime', '-1 day') THEN 1 END) AS requests_today
+     FROM song_requests`
+  );
+  const subStats = await get(
+    `SELECT
+       COUNT(*) AS subscriptions_total,
+       COUNT(CASE WHEN status = 'VERIFIED' THEN 1 END) AS subscriptions_verified,
+       COUNT(CASE WHEN status = 'SUBMITTED' THEN 1 END) AS subscriptions_submitted
+     FROM subscriptions`
+  );
+  const bookingCount = await get('SELECT COUNT(*) AS n FROM booking_messages');
+  res.json({
+    ...counts,
+    events_total: eventCount ? eventCount.n : 0,
+    requests_total: requestStats ? requestStats.total_requests : 0,
+    requests_today: requestStats ? requestStats.requests_today : 0,
+    bookings_total: bookingCount ? bookingCount.n : 0,
+    ...subStats,
+  });
+}));
+
+app.get('/api/super/djs', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const { status } = req.query || {};
+  let where = "u.role IN ('ADMIN', 'DJ')";
+  const params = [];
+  if (status && ['ACTIVE', 'PENDING', 'REJECTED', 'SUSPENDED'].includes(String(status))) {
+    where += ' AND u.status = ?';
+    params.push(String(status));
+  }
+
+  const rows = await all(
+    `SELECT u.id, u.name, u.email, u.role, u.status, u.created_at, u.updated_at,
+       d.slug, d.logo, d.tagline, d.location,
+       (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = u.id) AS total_subscriptions,
+       (SELECT COUNT(*) FROM subscriptions s WHERE s.user_id = u.id AND s.status = 'VERIFIED') AS verified_subscriptions
+     FROM users u LEFT JOIN djs d ON d.user_id = u.id
+     WHERE ${where} ORDER BY u.created_at DESC`,
+    params
+  );
+
+  const djs = [];
+  for (const row of rows) {
+    const latest = await get('SELECT * FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 1', [row.id]);
+    djs.push({ ...row, latest_subscription: latest || null });
+  }
+  res.json({ djs });
+}));
+
+app.patch('/api/super/djs/:id/status', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const { status } = req.body || {};
+  if (!['ACTIVE', 'PENDING', 'REJECTED', 'SUSPENDED'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  const user = await get('SELECT id, name, email, role, status FROM users WHERE id = ?', [req.params.id]);
+  if (!user || !['ADMIN', 'DJ'].includes(user.role)) {
+    return res.status(404).json({ error: 'DJ not found' });
+  }
+  await run('UPDATE users SET status = ?, updated_at = ? WHERE id = ?', [status, new Date().toISOString(), user.id]);
+  const updated = await get('SELECT id, name, email, role, status FROM users WHERE id = ?', [user.id]);
+  io.emit('user:status', updated);
+  res.json({ user: updated });
+}));
+
+app.get('/api/super/subscriptions', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const rows = await all(
+    `SELECT s.*, u.name AS user_name, u.email AS user_email, u.status AS user_status
+     FROM subscriptions s JOIN users u ON u.id = s.user_id
+     ORDER BY s.submitted_at DESC LIMIT 100`
+  );
+  res.json({ subscriptions: rows });
+}));
+
+app.patch('/api/super/subscriptions/:id', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const { status } = req.body || {};
+  if (!['VERIFIED', 'REJECTED'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  const sub = await get('SELECT * FROM subscriptions WHERE id = ?', [req.params.id]);
+  if (!sub) return res.status(404).json({ error: 'Subscription not found' });
+
+  await run(
+    `UPDATE subscriptions SET status = ?, verified_at = CASE WHEN ? = 'VERIFIED' THEN ? ELSE NULL END, verified_by = ? WHERE id = ?`,
+    [status, status, status === 'VERIFIED' ? new Date().toISOString() : null, req.dbUser.id, sub.id]
+  );
+
+  if (status === 'VERIFIED') {
+    await run('UPDATE users SET status = ?, updated_at = ? WHERE id = ?', ['ACTIVE', new Date().toISOString(), sub.user_id]);
+  }
+
+  const updatedUser = await get('SELECT id, name, email, role, status FROM users WHERE id = ?', [sub.user_id]);
+  if (updatedUser) io.emit('user:status', updatedUser);
+  const updated = await get('SELECT * FROM subscriptions WHERE id = ?', [sub.id]);
+  res.json({ subscription: updated, user: updatedUser });
+}));
+
 /* ----------------------------- TIPS / SETTINGS ----------------------------- */
 
 app.get('/api/tips', async (req, res) => {
   const settings = await getSettings();
-  const dj = await getDjProfile();
+  const slug = String(req.query.slug || '').trim();
+  const dj = slug ? await get('SELECT id, name, slug FROM djs WHERE slug = ?', [slug]) : null;
   res.json({
     tips: [],
     settings: {
@@ -533,14 +805,21 @@ app.patch('/api/admin/settings', authMiddleware, requireAdmin, asyncHandler(asyn
 
 app.get('/api/blog', async (req, res) => {
   const rows = await all(
-    `SELECT id, title, slug, excerpt, featured_image, category, status, published_at FROM blog_posts
-     WHERE status = 'PUBLISHED' ORDER BY published_at DESC`
+    `SELECT bp.id, bp.title, bp.slug, bp.excerpt, bp.featured_image, bp.category, bp.status, bp.published_at,
+       d.name AS dj_name, d.slug AS dj_slug
+     FROM blog_posts bp LEFT JOIN djs d ON d.id = bp.dj_id
+     WHERE bp.status = 'PUBLISHED' ORDER BY bp.published_at DESC`
   );
   res.json({ posts: rows });
 });
 
 app.get('/api/blog/:slug', async (req, res) => {
-  const post = await get('SELECT * FROM blog_posts WHERE slug = ? AND status = "PUBLISHED"', [req.params.slug]);
+  const post = await get(
+    `SELECT bp.*, d.name AS dj_name, d.slug AS dj_slug, d.logo AS dj_logo
+     FROM blog_posts bp LEFT JOIN djs d ON d.id = bp.dj_id
+     WHERE bp.slug = ? AND bp.status = 'PUBLISHED'`,
+    [req.params.slug]
+  );
   if (!post) return res.status(404).json({ error: 'Post not found' });
   res.json({ post });
 });
