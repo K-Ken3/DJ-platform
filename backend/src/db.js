@@ -61,6 +61,9 @@ export function initDb() {
       tagline TEXT,
       location TEXT,
       social_links TEXT,
+      momo_number TEXT,
+      momo_ussd TEXT,
+      momo_account_name TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id)
@@ -163,6 +166,16 @@ export function initDb() {
         const cols = await all('PRAGMA table_info(users)');
         if (!cols.some((c) => c.name === 'status')) {
           await run("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'PENDING'");
+        }
+        const djCols = await all('PRAGMA table_info(djs)');
+        if (!djCols.some((c) => c.name === 'momo_number')) {
+          await run('ALTER TABLE djs ADD COLUMN momo_number TEXT');
+        }
+        if (!djCols.some((c) => c.name === 'momo_ussd')) {
+          await run('ALTER TABLE djs ADD COLUMN momo_ussd TEXT');
+        }
+        if (!djCols.some((c) => c.name === 'momo_account_name')) {
+          await run('ALTER TABLE djs ADD COLUMN momo_account_name TEXT');
         }
         resolve();
       } catch (migrationError) {

@@ -22,7 +22,7 @@ services:
       - key: DATABASE_PATH
         value: ./data/dj-platform.db
       - key: MTN_MOMO_NUMBER
-        value: 0789630452
+        value: '0788205500'
       - key: MTN_MOMO_USSD
         value: '*182*8*1*1540166*22000#'
       - key: MOMO_ACCOUNT_NAME

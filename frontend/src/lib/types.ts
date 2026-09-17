@@ -63,6 +63,9 @@ export type DjProfile = {
   tagline?: string | null;
   location?: string | null;
   social_links?: string | null;
+  momo_number?: string | null;
+  momo_ussd?: string | null;
+  momo_account_name?: string | null;
 };
 
 export type BookingMessage = {

@@ -156,7 +156,7 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
   res.json({
     user,
     subscription,
-    dj: dj ? { id: dj.id, name: dj.name, slug: dj.slug, logo: dj.logo, tagline: dj.tagline, location: dj.location, social_links: dj.social_links } : null,
+    dj: dj ? { id: dj.id, name: dj.name, slug: dj.slug, logo: dj.logo, tagline: dj.tagline, location: dj.location, social_links: dj.social_links, momo_number: dj.momo_number, momo_ussd: dj.momo_ussd, momo_account_name: dj.momo_account_name } : null,
   });
 });
 
@@ -309,7 +309,7 @@ app.patch('/api/dj/profile', authMiddleware, requireAdmin, asyncHandler(async (r
   const dj = await getDjForUser(req.user.id);
   if (!dj) return res.status(404).json({ error: 'DJ profile missing' });
 
-  const { name, slug, logo, bio, tagline, location, social_links } = req.body || {};
+  const { name, slug, logo, bio, tagline, location, social_links, momo_number, momo_ussd, momo_account_name } = req.body || {};
   const updates = {};
   if (typeof name === 'string' && name.trim()) updates.name = name.trim();
   if (typeof slug === 'string' && slug.trim()) updates.slug = slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
@@ -317,6 +317,9 @@ app.patch('/api/dj/profile', authMiddleware, requireAdmin, asyncHandler(async (r
   if (typeof bio === 'string') updates.bio = bio;
   if (typeof tagline === 'string') updates.tagline = tagline;
   if (typeof location === 'string') updates.location = location;
+  if (typeof momo_number === 'string') updates.momo_number = momo_number.replace(/\s+/g, '');
+  if (typeof momo_ussd === 'string') updates.momo_ussd = momo_ussd.trim();
+  if (typeof momo_account_name === 'string') updates.momo_account_name = momo_account_name.trim();
   if (typeof social_links === 'object' && social_links !== null) updates.social_links = JSON.stringify(social_links);
 
   const keys = Object.keys(updates);
@@ -756,13 +759,13 @@ app.patch('/api/super/subscriptions/:id', authMiddleware, requireSuperAdmin, asy
 app.get('/api/tips', async (req, res) => {
   const settings = await getSettings();
   const slug = String(req.query.slug || '').trim();
-  const dj = slug ? await get('SELECT id, name, slug FROM djs WHERE slug = ?', [slug]) : null;
+  const dj = slug ? await get('SELECT id, name, slug, momo_number, momo_ussd, momo_account_name FROM djs WHERE slug = ?', [slug]) : null;
   res.json({
     tips: [],
     settings: {
-      mtn_momo_number: settings.mtn_momo_number || config.mtnMomoNumber,
-      mtn_momo_ussd: settings.mtn_momo_ussd || config.mtnMomoUssd,
-      momo_account_name: settings.momo_account_name || config.momoAccountName,
+      mtn_momo_number: (dj && dj.momo_number) || settings.mtn_momo_number || config.mtnMomoNumber,
+      mtn_momo_ussd: (dj && dj.momo_ussd) || settings.mtn_momo_ussd || config.mtnMomoUssd,
+      momo_account_name: (dj && (dj.momo_account_name || dj.name)) || settings.momo_account_name || config.momoAccountName,
       currency: settings.currency || 'RWF',
       suggested_tips: settings.suggested_tips ? JSON.parse(settings.suggested_tips) : [],
       tip_hint: settings.tip_hint || '',

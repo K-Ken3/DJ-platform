@@ -47,6 +47,9 @@ export function ProfileTab() {
     audiomack: '',
     facebook: '',
     youtube: '',
+    momo_number: '',
+    momo_ussd: '',
+    momo_account_name: '',
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -76,6 +79,9 @@ export function ProfileTab() {
             audiomack: (social as Record<string, string>).audiomack || '',
             facebook: (social as Record<string, string>).facebook || '',
             youtube: (social as Record<string, string>).youtube || '',
+            momo_number: dj.momo_number || '',
+            momo_ussd: dj.momo_ussd || '',
+            momo_account_name: dj.momo_account_name || '',
           });
         }
       })
@@ -97,6 +103,9 @@ export function ProfileTab() {
           bio: form.bio,
           location: form.location,
           logo: form.logo,
+          momo_number: form.momo_number,
+          momo_ussd: form.momo_ussd,
+          momo_account_name: form.momo_account_name,
           social_links: {
             instagram: form.instagram,
             audiomack: form.audiomack,
@@ -196,6 +205,27 @@ export function ProfileTab() {
           <p className="mt-1.5 text-xs text-zinc-400">Shown on your request page and in the DJ directory.</p>
           {logoError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{logoError}</p>}
         </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+          Tip payments (MTN Mobile Money)
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label htmlFor="pf-momo-number">MoMo number</label>
+            <input id="pf-momo-number" type="text" value={form.momo_number} onChange={(event) => setForm((current) => ({ ...current, momo_number: event.target.value }))} placeholder="0789630452" />
+          </div>
+          <div>
+            <label htmlFor="pf-momo-ussd">USSD code</label>
+            <input id="pf-momo-ussd" type="text" value={form.momo_ussd} onChange={(event) => setForm((current) => ({ ...current, momo_ussd: event.target.value }))} placeholder="*182*1*1*0789630452#" className="font-mono" />
+          </div>
+          <div>
+            <label htmlFor="pf-momo-name">Account name</label>
+            <input id="pf-momo-name" type="text" value={form.momo_account_name} onChange={(event) => setForm((current) => ({ ...current, momo_account_name: event.target.value }))} placeholder="Your name" />
+          </div>
+        </div>
+        <p className="mt-1.5 text-xs text-zinc-400">Guests see these details when they send a tip on your request page.</p>
       </div>
 
       <div>

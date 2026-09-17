@@ -21,8 +21,13 @@ export async function seedDatabase() {
   if (djUser) {
     await run(`UPDATE users SET status = ? WHERE email = ?`, ['ACTIVE', 'dj@vaxino.com']);
     await run(
-      `UPDATE djs SET logo = ? WHERE user_id = ? AND (logo IS NULL OR logo = '' OR logo LIKE '%images.unsplash.com%')`,
-      ['/vaxino-logo.png', djUser.id]
+      `UPDATE djs SET
+         logo = CASE WHEN logo IS NULL OR logo = '' OR logo LIKE '%images.unsplash.com%' THEN ? ELSE logo END,
+         momo_number = COALESCE(NULLIF(momo_number, ''), ?),
+         momo_ussd = COALESCE(NULLIF(momo_ussd, ''), ?),
+         momo_account_name = COALESCE(NULLIF(momo_account_name, ''), ?)
+       WHERE user_id = ?`,
+      ['/vaxino-logo.png', '0789630452', '*182*1*1*0789630452#', 'DJ Vaxino', djUser.id]
     );
     await ensureSettings();
     return;
@@ -36,7 +41,7 @@ export async function seedDatabase() {
   );
 
   const dj = await run(
-    `INSERT INTO djs (user_id, name, slug, bio, tagline, location, social_links, logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO djs (user_id, name, slug, bio, tagline, location, social_links, logo, momo_number, momo_ussd, momo_account_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       user.id,
       'DJ Vaxino',
@@ -51,6 +56,9 @@ export async function seedDatabase() {
         youtube: 'https://www.youtube.com/@Deejayvaxino',
       }),
       '/vaxino-logo.png',
+      '0789630452',
+      '*182*1*1*0789630452#',
+      'DJ Vaxino',
     ]
   );
 
@@ -145,7 +153,7 @@ export async function seedDatabase() {
 
 async function ensureSettings() {
   const settings = [
-    ['mtn_momo_number', '0789630452'],
+    ['mtn_momo_number', '0788205500'],
     ['mtn_momo_ussd', '*182*8*1*1540166*22000#'],
     ['momo_account_name', 'Ken'],
     ['currency', 'RWF'],

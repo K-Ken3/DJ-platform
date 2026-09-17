@@ -23,7 +23,7 @@ type TipSettings = {
 };
 
 const fallbackTips: TipSettings = {
-  mtn_momo_number: '0789630452',
+  mtn_momo_number: '0788205500',
   mtn_momo_ussd: '*182*8*1*1540166*22000#',
   momo_account_name: 'Ken',
   currency: 'RWF',
