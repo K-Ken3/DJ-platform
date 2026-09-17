@@ -3,9 +3,17 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { MapPin, Music2, Search } from 'lucide-react';
+import { Logo } from '@/components/site/Logo';
 import type { PublicDj } from '@/lib/types';
 
+function isBrandLogo(logo?: string | null) {
+  return logo === '/logo.png' || logo === '/logo-white.png';
+}
+
 function DjLogo({ dj }: { dj: PublicDj }) {
+  if (isBrandLogo(dj.logo)) {
+    return <Logo className="h-12 w-auto" />;
+  }
   if (dj.logo) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -100,7 +108,9 @@ export function DjDirectory({ djs }: { djs: PublicDj[] }) {
               <div className="mt-auto pt-6">
                 <p className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
                   <Music2 className="h-3.5 w-3.5" />
-                  Scan the event QR code to request a song
+                  {dj.events && dj.events.length > 0
+                    ? 'Scan the event QR code to request a song'
+                    : 'No live event right now — stay tuned for the upcoming event'}
                 </p>
               </div>
             </article>

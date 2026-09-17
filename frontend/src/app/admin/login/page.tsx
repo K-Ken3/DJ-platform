@@ -98,12 +98,6 @@ export default function AdminLoginPage() {
             </Link>
           </p>
         </div>
-
-        <div className="mt-6 rounded-xs border border-zinc-200 bg-zinc-50 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-          <p className="font-bold uppercase tracking-wider">Demo accounts</p>
-          <p className="mt-1 font-mono">DJ: dj@vaxino.com / djadmin123</p>
-          <p className="font-mono">Owner: admin@djlink.app / djadmin123</p>
-        </div>
       </div>
     </main>
   );

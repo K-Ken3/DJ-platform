@@ -22,12 +22,12 @@ export async function seedDatabase() {
     await run(`UPDATE users SET status = ? WHERE email = ?`, ['ACTIVE', 'dj@vaxino.com']);
     await run(
       `UPDATE djs SET
-         logo = CASE WHEN logo IS NULL OR logo = '' OR logo LIKE '%images.unsplash.com%' THEN ? ELSE logo END,
+         logo = CASE WHEN logo IS NULL OR logo = '' OR logo LIKE '%images.unsplash.com%' OR logo LIKE '%vaxino-logo%' THEN ? ELSE logo END,
          momo_number = COALESCE(NULLIF(momo_number, ''), ?),
          momo_ussd = COALESCE(NULLIF(momo_ussd, ''), ?),
          momo_account_name = COALESCE(NULLIF(momo_account_name, ''), ?)
        WHERE user_id = ?`,
-      ['/vaxino-logo.png', '0789630452', '*182*1*1*0789630452#', 'DJ Vaxino', djUser.id]
+      ['/logo.png', '0789630452', '*182*1*1*0789630452#', 'DJ Vaxino', djUser.id]
     );
     await ensureSettings();
     return;
@@ -55,7 +55,7 @@ export async function seedDatabase() {
         facebook: 'https://facebook.com/dj_vaxino',
         youtube: 'https://www.youtube.com/@Deejayvaxino',
       }),
-      '/vaxino-logo.png',
+      '/logo.png',
       '0789630452',
       '*182*1*1*0789630452#',
       'DJ Vaxino',

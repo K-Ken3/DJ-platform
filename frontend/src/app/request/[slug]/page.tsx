@@ -3,6 +3,7 @@
 import { CalendarX, CheckCircle2, Copy, Music2, Phone, Sun, Moon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { Logo } from '@/components/site/Logo';
 import { useTheme } from '@/lib/theme';
 
 type Dj = {
@@ -39,7 +40,14 @@ const fallbackTips: TipSettings = {
   djName: 'DJ',
 };
 
+function isBrandLogo(logo?: string | null) {
+  return logo === '/logo.png' || logo === '/logo-white.png';
+}
+
 function DjMark({ dj }: { dj: Dj }) {
+  if (isBrandLogo(dj.logo)) {
+    return <Logo className="h-5 w-auto" />;
+  }
   if (dj.logo) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -157,7 +165,9 @@ export default function RequestPage({
           <div className="flex items-center gap-2.5">
             {dj ? <DjMark dj={dj} /> : <span className="h-9 w-9 bg-zinc-200 dark:bg-zinc-800" />}
             <div className="leading-tight border-l border-zinc-200 dark:border-zinc-800 pl-2.5">
-              <span className="block text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">Request a song</span>
+              <span className="block text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">
+                {eventEnded ? 'Event ended' : 'Request a song'}
+              </span>
               <span className="block text-sm font-extrabold">{displayName}</span>
             </div>
           </div>
@@ -206,8 +216,9 @@ export default function RequestPage({
               <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                 {matchedEvent
                   ? `${matchedEvent.name} is no longer accepting song requests.`
-                  : `${displayName} has no active event right now, so song requests are closed.`}
+                  : `${displayName} is not live in any event right now, so song requests are paused.`}
               </p>
+              <p className="mt-2 text-sm font-semibold text-accent">Stay tuned for the upcoming event.</p>
               <a href="/" className="btn-primary mt-6">
                 Browse DJs
               </a>
