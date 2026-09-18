@@ -19,10 +19,28 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
 const vercelOriginPattern = /^https:\/\/[a-z0-9-]+(-[a-z0-9-]+)?\.vercel\.app$/i;
+
+function normalizeHost(hostname) {
+  return hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+}
+
 function isAllowedOrigin(origin) {
   if (!origin) return true;
-  if (config.allowedOrigins.includes(origin)) return true;
-  if (vercelOriginPattern.test(origin)) return true;
+  try {
+    const requested = new URL(origin);
+    const requestedHost = normalizeHost(requested.hostname);
+    if (config.allowedOrigins.includes(origin)) return true;
+    if (vercelOriginPattern.test(origin)) return true;
+    for (const allowed of config.allowedOrigins) {
+      try {
+        if (normalizeHost(new URL(allowed).hostname) === requestedHost) return true;
+      } catch {
+        // skip malformed origin
+      }
+    }
+  } catch {
+    // treat unparseable origins as not allowed
+  }
   return false;
 }
 

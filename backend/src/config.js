@@ -12,7 +12,7 @@ const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
 const publicAppUrl = process.env.PUBLIC_APP_URL || frontendUrl;
 const allowedOrigins = (
   process.env.ALLOWED_ORIGINS ||
-  `${frontendUrl},${publicAppUrl},${backendUrl},http://localhost:3000,http://localhost:4000`
+  `${frontendUrl},${publicAppUrl},${backendUrl},https://djlink.space,https://www.djlink.space,http://localhost:3000,http://localhost:4000`
 )
   .split(',')
   .map((value) => value.trim())
