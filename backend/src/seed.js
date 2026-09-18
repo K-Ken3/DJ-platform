@@ -162,6 +162,11 @@ async function ensureSettings() {
     ['subscription_fee', '22000'],
     ['subscription_fee_usd', '15'],
     ['usd_rwf_rate', '1469'],
+    ['site_logo', '/logo.png'],
+    ['site_logo_dark', '/logo-white.png'],
+    ['footer_logo', '/logo.png'],
+    ['footer_logo_dark', '/logo-white.png'],
+    ['site_name', 'DJLink'],
   ];
 
   for (const [key, value] of settings) {

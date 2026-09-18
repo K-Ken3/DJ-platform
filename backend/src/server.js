@@ -135,6 +135,18 @@ async function setSetting(key, value) {
   return await run(`INSERT INTO app_settings (key, value) VALUES (?, ?)`, [key, value]);
 }
 
+function getBranding(settings) {
+  const siteLogo = settings.site_logo || '/logo.png';
+  const siteLogoDark = settings.site_logo_dark || '/logo-white.png';
+  return {
+    site_logo: siteLogo,
+    site_logo_dark: siteLogoDark,
+    footer_logo: settings.footer_logo || siteLogo,
+    footer_logo_dark: settings.footer_logo_dark || siteLogoDark,
+    site_name: settings.site_name || 'DJLink',
+  };
+}
+
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
@@ -806,6 +818,37 @@ app.get('/api/admin/settings', authMiddleware, requireAdmin, async (req, res) =>
     },
   });
 });
+
+app.get('/api/site-branding', asyncHandler(async (req, res) => {
+  const settings = await getSettings();
+  res.json({ branding: getBranding(settings) });
+}));
+
+app.get('/api/admin/site-branding', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const settings = await getSettings();
+  res.json({
+    branding: {
+      site_logo: settings.site_logo || '/logo.png',
+      site_logo_dark: settings.site_logo_dark || '/logo-white.png',
+      footer_logo: settings.footer_logo || '',
+      footer_logo_dark: settings.footer_logo_dark || '',
+      site_name: settings.site_name || '',
+    },
+  });
+}));
+
+app.patch('/api/admin/site-branding', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const { site_logo, site_logo_dark, footer_logo, footer_logo_dark, site_name } = req.body || {};
+
+  if (typeof site_logo === 'string') await setSetting('site_logo', site_logo.trim());
+  if (typeof site_logo_dark === 'string') await setSetting('site_logo_dark', site_logo_dark.trim());
+  if (typeof footer_logo === 'string') await setSetting('footer_logo', footer_logo.trim());
+  if (typeof footer_logo_dark === 'string') await setSetting('footer_logo_dark', footer_logo_dark.trim());
+  if (typeof site_name === 'string') await setSetting('site_name', site_name.trim());
+
+  const settings = await getSettings();
+  res.json({ branding: getBranding(settings) });
+}));
 
 app.patch('/api/admin/settings', authMiddleware, requireAdmin, asyncHandler(async (req, res) => {
   const { mtn_momo_number, mtn_momo_ussd, momo_account_name, currency, suggested_tips, tip_hint } = req.body || {};

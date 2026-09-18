@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { BrandingProvider } from '@/lib/branding';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-display' });
 
@@ -27,7 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={`${inter.variable} font-display`}>{children}</body>
+      <body className={`${inter.variable} font-display`}>
+        <BrandingProvider>{children}</BrandingProvider>
+      </body>
     </html>
   );
 }

@@ -13,16 +13,18 @@ import {
   LogOut,
   MessageSquare,
   Music4,
+  Palette,
   RefreshCw,
   Shield,
   TrendingUp,
   Users,
 } from 'lucide-react';
 import { Logo } from '@/components/site/Logo';
+import { BrandingTab } from '@/components/admin/BrandingTab';
 import { api } from '@/lib/api';
 import type { SuperDj, SuperStats, SubscriptionRecord } from '@/lib/types';
 
-type TabId = 'overview' | 'djs' | 'payments';
+type TabId = 'overview' | 'djs' | 'payments' | 'branding';
 
 type SubscriptionRow = SubscriptionRecord & { user_name: string; user_email: string; user_status: string };
 
@@ -137,6 +139,7 @@ export default function SuperAdminPage() {
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'djs', label: 'DJs', icon: Users },
     { id: 'payments', label: 'Payments', icon: CreditCard },
+    { id: 'branding', label: 'Branding', icon: Palette },
   ];
 
   return (
@@ -432,11 +435,12 @@ export default function SuperAdminPage() {
               )}
             </>
           )}
+        {tab === 'branding' && <BrandingTab />}
         </div>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white lg:hidden dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="grid grid-cols-3">
+        <div className="grid grid-cols-4">
           {tabs.map((item) => {
             const Icon = item.icon;
             return (

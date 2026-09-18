@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ThemeToggle } from './ThemeToggle';
 import { Logo } from './Logo';
+import { useBranding } from '@/lib/branding';
 
 const links = [
   { href: '#djs', label: 'DJs' },
@@ -15,11 +16,12 @@ const links = [
 
 export function NavBar() {
   const [open, setOpen] = useState(false);
+  const { branding } = useBranding();
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200 bg-zinc-50/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" aria-label="DJLink home" className="flex items-center">
+        <Link href="/" aria-label={`${branding.site_name || 'DJLink'} home`} className="flex items-center">
           <Logo className="h-9 w-auto" />
         </Link>
 
