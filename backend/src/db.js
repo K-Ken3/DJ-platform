@@ -134,13 +134,15 @@ export function initDb() {
 
     CREATE TABLE IF NOT EXISTS booking_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      dj_id INTEGER,
       name TEXT NOT NULL,
       email TEXT NOT NULL,
       phone TEXT,
       event_type TEXT,
       event_date TEXT,
       message TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(dj_id) REFERENCES djs(id)
     );
 
     CREATE TABLE IF NOT EXISTS subscriptions (
@@ -176,6 +178,10 @@ export function initDb() {
         }
         if (!djCols.some((c) => c.name === 'momo_account_name')) {
           await run('ALTER TABLE djs ADD COLUMN momo_account_name TEXT');
+        }
+        const bookingCols = await all('PRAGMA table_info(booking_messages)');
+        if (!bookingCols.some((c) => c.name === 'dj_id')) {
+          await run('ALTER TABLE booking_messages ADD COLUMN dj_id INTEGER');
         }
         resolve();
       } catch (migrationError) {

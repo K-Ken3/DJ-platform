@@ -70,6 +70,8 @@ export type DjProfile = {
 
 export type BookingMessage = {
   id: number;
+  dj_id?: number | null;
+  dj_name?: string | null;
   name: string;
   email: string;
   phone?: string | null;
@@ -89,6 +91,22 @@ export type PublicDj = {
   location?: string | null;
   social_links?: Record<string, string> | null;
   events?: { id: number; name: string; venue?: string | null; event_date?: string | null; event_code: string }[];
+};
+
+export type PublicDjEvent = {
+  id: number;
+  name: string;
+  venue?: string | null;
+  event_date?: string | null;
+  event_code: string;
+  active: number;
+  request_count?: number;
+};
+
+export type DjPublicPage = {
+  dj: DjProfile & { role: string; status: string };
+  events: PublicDjEvent[];
+  posts: BlogPost[];
 };
 
 export type SubscriptionRecord = {

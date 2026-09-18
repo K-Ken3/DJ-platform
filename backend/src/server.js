@@ -687,8 +687,25 @@ app.get('/api/admin/stats', authMiddleware, requireAdmin, async (req, res) => {
   res.json({ requests, events, dj });
 });
 
-app.get('/api/admin/bookings', authMiddleware, requireAdmin, async (req, res) => {
-  const bookings = await all('SELECT * FROM booking_messages ORDER BY created_at DESC LIMIT 50');
+app.get('/api/admin/bookings', authMiddleware, async (req, res) => {
+  const user = await get('SELECT id, role FROM users WHERE id = ?', [req.user.id]);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  if (user.role === 'SUPERADMIN') {
+    const bookings = await all(
+      `SELECT b.*, d.name AS dj_name FROM booking_messages b LEFT JOIN djs d ON d.id = b.dj_id
+       ORDER BY b.created_at DESC LIMIT 50`
+    );
+    return res.json({ bookings });
+  }
+  if (!['ADMIN', 'DJ'].includes(user.role)) {
+    return res.status(403).json({ error: 'Your account needs approval before you can do this.' });
+  }
+  const dj = await getDjForUser(user.id);
+  if (!dj) return res.json({ bookings: [] });
+  const bookings = await all(
+    `SELECT * FROM booking_messages WHERE dj_id = ? ORDER BY created_at DESC LIMIT 50`,
+    [dj.id]
+  );
   res.json({ bookings });
 });
 
@@ -992,14 +1009,25 @@ app.get('/api/admin/blog', authMiddleware, requireAdmin, asyncHandler(async (req
 /* ----------------------------- CONTACT ----------------------------- */
 
 app.post('/api/contact', async (req, res) => {
-  const { name, email, phone, event_type, event_date, message } = req.body || {};
+  const { name, email, phone, event_type, event_date, message, dj_id } = req.body || {};
   if (!name || !name.trim() || !email || !email.trim()) {
     return res.status(400).json({ error: 'Name and email are required.' });
   }
 
+  let djId = null;
+  if (dj_id != null) {
+    const parsed = Number(dj_id);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return res.status(400).json({ error: 'Invalid DJ reference.' });
+    }
+    const djExists = await get('SELECT id FROM djs WHERE id = ?', [parsed]);
+    if (!djExists) return res.status(404).json({ error: 'DJ not found.' });
+    djId = parsed;
+  }
+
   await run(
-    `INSERT INTO booking_messages (name, email, phone, event_type, event_date, message) VALUES (?, ?, ?, ?, ?, ?)`,
-    [name.trim(), email.trim(), phone || null, event_type || null, event_date || null, message || null]
+    `INSERT INTO booking_messages (dj_id, name, email, phone, event_type, event_date, message) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [djId, name.trim(), email.trim(), phone || null, event_type || null, event_date || null, message || null]
   );
 
   res.status(201).json({ success: true, message: 'Booking request sent!' });

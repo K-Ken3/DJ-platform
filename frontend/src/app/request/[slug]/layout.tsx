@@ -30,9 +30,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     };
   }
   const ogImage =
-    dj.logo && !dj.logo.startsWith('data:') && !dj.logo.startsWith('/vaxino-logo.png')
-      ? [{ url: dj.logo, alt: `${dj.name} logo` }]
-      : [];
+    dj.logo && !dj.logo.startsWith('data:') ? [{ url: dj.logo, alt: `${dj.name} logo` }] : [];
   return {
     title: `Request a song with ${dj.name}`,
     description: dj.tagline || `Send live song requests and tips to ${dj.name} — powered by DJLink.`,

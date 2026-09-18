@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { MapPin, Music2, Search } from 'lucide-react';
+import { MapPin, Search } from 'lucide-react';
 import { Logo } from '@/components/site/Logo';
 import type { PublicDj } from '@/lib/types';
 
@@ -12,16 +12,16 @@ function isBrandLogo(logo?: string | null) {
 
 function DjLogo({ dj }: { dj: PublicDj }) {
   if (isBrandLogo(dj.logo)) {
-    return <Logo className="h-12 w-auto" />;
+    return <Logo className="h-8 w-auto sm:h-12" />;
   }
   if (dj.logo) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={dj.logo} alt={`${dj.name} logo`} className="max-h-24 max-w-full object-contain" />
+      <img src={dj.logo} alt={`${dj.name} logo`} className="max-h-14 max-w-full object-contain sm:max-h-24" />
     );
   }
   return (
-    <span className="flex h-24 w-24 items-center justify-center bg-accent/10 text-3xl font-extrabold text-accent">
+    <span className="flex h-14 w-14 items-center justify-center bg-accent/10 text-xl font-extrabold text-accent sm:h-20 sm:w-20 sm:text-2xl">
       {dj.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || 'DJ'}
     </span>
   );
@@ -72,46 +72,49 @@ export function DjDirectory({ djs }: { djs: PublicDj[] }) {
           )}
         </div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
           {filtered.map((dj) => (
-            <article key={dj.slug} className="card card-pad flex flex-col">
-              <div className="mb-5 flex h-32 items-center justify-center overflow-hidden bg-zinc-50 dark:bg-zinc-950/60">
+            <article key={dj.slug} className="card flex flex-col p-4 sm:p-6">
+              <Link
+                href={`/dj/${dj.slug}`}
+                className="flex h-20 items-center justify-center overflow-hidden rounded-xs bg-zinc-50 dark:bg-zinc-950/60 sm:h-28"
+                aria-label={`View ${dj.name} profile`}
+              >
                 <DjLogo dj={dj} />
-              </div>
+              </Link>
 
-              <h3 className="text-xl font-extrabold leading-snug">{dj.name}</h3>
-              <p className="mt-1.5 line-clamp-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <Link href={`/dj/${dj.slug}`} className="mt-3 text-lg font-extrabold leading-snug hover:text-accent sm:text-xl">
+                {dj.name}
+              </Link>
+              <p className="mt-1 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400 sm:text-sm">
                 {dj.tagline || 'Live song requests and unforgettable sets.'}
               </p>
 
               {dj.location && (
-                <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
                   <MapPin className="h-3.5 w-3.5" />
                   {dj.location}
                 </p>
               )}
 
               {dj.events && dj.events.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-1.5">
+                <div className="mt-3 hidden flex-wrap gap-1.5 sm:flex">
                   {dj.events.slice(0, 2).map((event) => (
                     <span
                       key={event.id}
                       className="inline-flex items-center gap-1.5 rounded-xs border border-emerald-700/40 bg-emerald-500/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-400"
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      {event.name}
+                      <span className="max-w-24 truncate">{event.name}</span>
                     </span>
                   ))}
                 </div>
               )}
 
-              <div className="mt-auto pt-6">
-                <p className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
-                  <Music2 className="h-3.5 w-3.5" />
-                  {dj.events && dj.events.length > 0
-                    ? 'Scan the event QR code to request a song'
-                    : 'No live event right now — stay tuned for the upcoming event'}
-                </p>
+              <div className="mt-auto pt-4">
+                <Link href={`/dj/${dj.slug}`} className="btn-outline btn-sm w-full">
+                  View profile
+                </Link>
               </div>
             </article>
           ))}

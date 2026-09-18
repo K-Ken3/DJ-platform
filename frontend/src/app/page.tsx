@@ -60,7 +60,7 @@ const fallbackInfo: RegistrationInfo = {
   subscription_fee_usd: 15,
   usd_rwf_rate: 1469,
   currency: 'RWF',
-  mtn_momo_number: '0789630452',
+  mtn_momo_number: '0788205500',
   mtn_momo_ussd: '*182*8*1*1540166*22000#',
   momo_account_name: 'Ken',
 };
@@ -156,7 +156,7 @@ export default async function HomePage() {
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-4">
             {[
               { icon: Music2, title: 'Live requests', body: 'Songs reach the booth in seconds.' },
               { icon: CalendarDays, title: 'Bookings', body: 'Find DJs for clubs, weddings, and parties.' },
@@ -169,7 +169,7 @@ export default async function HomePage() {
                   <span className="flex h-10 w-10 items-center justify-center bg-accent/10 text-accent">
                     <Icon className="h-5 w-5" />
                   </span>
-                  <p className="mt-4 font-bold">{item.title}</p>
+                  <p className="mt-3 font-bold sm:mt-4">{item.title}</p>
                   <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{item.body}</p>
                 </div>
               );
@@ -254,32 +254,16 @@ export default async function HomePage() {
               One-time activation fee. Pay via MTN Mobile Money and our team verifies your account.
             </p>
 
-            <dl className="mt-6 space-y-3 border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800">
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-zinc-500 dark:text-zinc-400">Membership fee</dt>
-                <dd className="font-semibold">${info.subscription_fee_usd || 15} ({(info.subscription_fee || 22000).toLocaleString()} {info.currency})</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-zinc-500 dark:text-zinc-400">Exchange rate</dt>
-                <dd className="font-semibold">1 USD ≈ {(info.usd_rwf_rate || 1469).toLocaleString()} {info.currency}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-zinc-500 dark:text-zinc-400">Account name</dt>
-                <dd className="font-semibold">{info.momo_account_name || 'Ken'}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-zinc-500 dark:text-zinc-400">MoMo number</dt>
-                <dd className="font-mono font-semibold">{info.mtn_momo_number}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-zinc-500 dark:text-zinc-400">USSD</dt>
-                <dd className="font-mono font-semibold">{info.mtn_momo_ussd}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-zinc-500 dark:text-zinc-400">Approval</dt>
-                <dd className="font-semibold">Within 24 hours</dd>
-              </div>
-            </dl>
+            <ul className="mt-6 space-y-3 border-t border-zinc-200 pt-6 text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
+              <li className="flex items-start gap-2.5">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 bg-accent" />
+                Pay the one-time activation fee with MTN Mobile Money.
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 bg-accent" />
+                Our team verifies and activates your profile within 24 hours.
+              </li>
+            </ul>
 
             <Link href="/admin/register" className="btn-primary btn-lg mt-8">
               Join as a DJ

@@ -12,7 +12,7 @@ const initialForm = {
   message: '',
 };
 
-export function ContactForm() {
+export function ContactForm({ djId }: { djId?: number }) {
   const [form, setForm] = useState(initialForm);
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [error, setError] = useState('');
@@ -31,7 +31,7 @@ export function ContactForm() {
     try {
       await api<{ message: string }>('/api/contact', {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, dj_id: djId }),
       });
       setStatus('success');
       setForm(initialForm);

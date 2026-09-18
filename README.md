@@ -20,13 +20,16 @@ A full-stack DJ platform with:
 
 ## Default admin login
 
-- Email: dj@vaxino.com
-- Password: djadmin123
+- Email: karasiraken5@gmail.com
+- Password: 20060Ken
 
-## Public request URLs
+> This is the platform owner (SUPERADMIN) account. DJs register through the public site and are approved by the owner. No demo DJ accounts are seeded.
+
+## Public URLs
 
 - Home: http://localhost:3000
-- Request page: http://localhost:3000/request/dj-vaxino
+- DJ profile: http://localhost:3000/dj/<slug>
+- Request page: http://localhost:3000/request/<slug>
 - Admin: http://localhost:3000/admin/login
 
 ## Backend API

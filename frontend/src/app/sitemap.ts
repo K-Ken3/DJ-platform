@@ -38,6 +38,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const data = (await res.json()) as { djs?: { slug: string; created_at?: string | null }[] };
       for (const dj of data.djs || []) {
         entries.push({
+          url: `${base}/dj/${dj.slug}`,
+          lastModified: dj.created_at ? new Date(dj.created_at) : new Date(),
+          changeFrequency: 'weekly',
+          priority: 0.7,
+        });
+        entries.push({
           url: `${base}/request/${dj.slug}`,
           lastModified: dj.created_at ? new Date(dj.created_at) : new Date(),
           changeFrequency: 'daily',

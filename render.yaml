@@ -6,6 +6,10 @@ services:
     runtime: node
     rootDir: .
     plan: free
+    disk:
+      name: djlink-data
+      mountPath: /var/data
+      sizeGB: 1
     buildCommand: npm install
     startCommand: npm --prefix backend run start
     envVars:
@@ -22,7 +26,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: DATABASE_PATH
-        value: ./data/dj-platform.db
+        value: /var/data/dj-platform.db
       - key: MTN_MOMO_NUMBER
         value: '0788205500'
       - key: MTN_MOMO_USSD

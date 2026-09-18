@@ -6,7 +6,6 @@ import { useBranding } from '@/lib/branding';
 
 export function SiteFooter() {
   const { branding } = useBranding();
-  const siteName = branding.site_name || 'DJLink';
 
   return (
     <footer className="border-t border-zinc-200 dark:border-zinc-800">
@@ -35,7 +34,7 @@ export function SiteFooter() {
           </Link>
         </nav>
 
-        <p className="text-xs text-zinc-400 dark:text-zinc-600">&copy; {new Date().getFullYear()} {siteName}. All rights reserved.</p>
+        <p className="text-xs text-zinc-400 dark:text-zinc-600">&copy; 2026 Designed by AlverLabs. All rights reserved.</p>
       </div>
     </footer>
   );

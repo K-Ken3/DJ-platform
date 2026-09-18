@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Clock, Copy, Home, Moon, Phone, Sun, UserPlus } from 'lucide-react';
+import { CheckCircle2, Clock, Copy, Eye, EyeOff, Home, Moon, Phone, Sun, UserPlus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
 import { Logo } from '@/components/site/Logo';
@@ -16,7 +16,7 @@ const fallbackInfo: RegistrationInfo = {
   subscription_fee_usd: 15,
   usd_rwf_rate: 1469,
   currency: 'RWF',
-  mtn_momo_number: '0789630452',
+  mtn_momo_number: '0788205500',
   mtn_momo_ussd: '*182*8*1*1540166*22000#',
   momo_account_name: 'Ken',
 };
@@ -26,6 +26,7 @@ export default function AdminRegisterPage() {
   const { theme, toggle } = useTheme();
   const [info, setInfo] = useState<RegistrationInfo>(fallbackInfo);
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [phase, setPhase] = useState<'form' | 'pending'>('form');
   const [reference, setReference] = useState('');
   const [paymentSubmitted, setPaymentSubmitted] = useState(false);
@@ -155,16 +156,27 @@ export default function AdminRegisterPage() {
               </div>
               <div>
                 <label htmlFor="reg-password">Password</label>
-                <input
-                  id="reg-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={form.password}
-                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                  placeholder="At least 8 characters"
-                  required
-                  minLength={8}
-                />
+                <div className="relative">
+                  <input
+                    id="reg-password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={form.password}
+                    onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                    placeholder="At least 8 characters"
+                    className="pr-10"
+                    required
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPassword((value) => !value)}
+                    className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-200"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               {error && <p className="rounded-xs border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">{error}</p>}
