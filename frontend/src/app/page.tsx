@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { CalendarDays, Music2, QrCode, Radio, Smartphone, UserCheck } from 'lucide-react';
 
 import { NavBar } from '@/components/site/NavBar';
@@ -9,6 +10,50 @@ import { BACKEND_URL } from '@/lib/api';
 import type { PublicDj, RegistrationInfo } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dj-platform.onrender.com';
+
+export const metadata: Metadata = {
+  title: 'Find DJs in Rwanda, Request Songs Live & Book Events',
+  description:
+    'Browse verified DJs on DJLink, send live song requests straight to the booth, pay tips via MTN Mobile Money, and book DJs for weddings, clubs, and parties across Rwanda.',
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    url: '/',
+    title: 'DJLink | Find DJs, Request Songs Live & Book Events',
+    description: 'Browse verified DJs, request songs in real time, and book your next event in Rwanda.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'DJLink | Find DJs, Request Songs Live & Book Events',
+    description: 'Browse verified DJs, request songs in real time, and book your next event in Rwanda.',
+  },
+};
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${siteUrl}/#organization`,
+      name: 'DJLink',
+      url: `${siteUrl}/`,
+      logo: { '@type': 'ImageObject', url: `${siteUrl}/logo.png` },
+      description:
+        'DJLink is the marketplace for DJs in Rwanda. Discover DJs, request songs live, book events, and tip via MTN Mobile Money.',
+      address: { '@type': 'PostalAddress', addressLocality: 'Kigali', addressCountry: 'RW' },
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${siteUrl}/#website`,
+      url: `${siteUrl}/`,
+      name: 'DJLink',
+      publisher: { '@id': `${siteUrl}/#organization` },
+      inLanguage: 'en',
+    },
+  ],
+};
 
 const fallbackInfo: RegistrationInfo = {
   subscription_fee: 22000,
@@ -75,6 +120,10 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <NavBar />
 
       {/* HERO */}

@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { ArrowLeft, CalendarDays } from 'lucide-react';
 
 import { NavBar } from '@/components/site/NavBar';
@@ -7,6 +8,8 @@ import { SiteFooter } from '@/components/site/SiteFooter';
 import { BACKEND_URL } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dj-platform.onrender.com';
 
 type Post = {
   id: number;
@@ -32,6 +35,39 @@ async function getPost(slug: string): Promise<Post | null> {
     // fall through
   }
   return null;
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const post = await getPost(params.slug);
+  if (!post) {
+    return {
+      title: 'Post not found',
+      robots: { index: false },
+    };
+  }
+  const ogImage = post.featured_image && !post.featured_image.startsWith('data:')
+    ? [{ url: post.featured_image, alt: post.title }]
+    : [];
+  return {
+    title: post.title,
+    description: post.excerpt || undefined,
+    alternates: { canonical: `/blog/${post.slug}` },
+    openGraph: {
+      type: 'article',
+      url: `/blog/${post.slug}`,
+      title: post.title,
+      description: post.excerpt || undefined,
+      images: ogImage,
+      publishedTime: post.published_at || undefined,
+      authors: post.dj_name ? [post.dj_name] : undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.excerpt || undefined,
+      images: ogImage.length ? [ogImage[0].url] : undefined,
+    },
+  };
 }
 
 export default async function BlogPostPage({ params }: { params: { slug: string } }) {
@@ -61,6 +97,22 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
       <NavBar />
 
       <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6 md:py-16">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'BlogPosting',
+              headline: post.title,
+              description: post.excerpt || undefined,
+              image: post.featured_image && !post.featured_image.startsWith('data:') ? post.featured_image.startsWith('http') ? post.featured_image : `${siteUrl}${post.featured_image}` : undefined,
+              datePublished: post.published_at || undefined,
+              author: { '@type': 'Person', name: post.dj_name || 'DJLink' },
+              publisher: { '@type': 'Organization', name: 'DJLink', logo: { '@type': 'ImageObject', url: `${siteUrl}/logo.png` } },
+              mainEntityOfPage: `${siteUrl}/blog/${post.slug}`,
+            }),
+          }}
+        />
         <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
           <ArrowLeft className="h-4 w-4" />
           Back to DJLink
