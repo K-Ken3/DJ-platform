@@ -56,7 +56,11 @@ function formatDate(value?: string | null): string {
 
 export default function SuperAdminPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<TabId>('overview');
+  const [tab, setTab] = useState<TabId>(() => {
+    if (typeof window === 'undefined') return 'overview';
+    const hash = window.location.hash.replace('#', '') as TabId;
+    return tabs.some((item) => item.id === hash) ? hash : 'overview';
+  });
   const [ownerName, setOwnerName] = useState('DJLink Owner');
   const [stats, setStats] = useState<SuperStats | null>(null);
   const [djs, setDjs] = useState<SuperDj[]>([]);
@@ -97,6 +101,10 @@ export default function SuperAdminPage() {
       .catch(() => router.push('/admin/login'))
       .finally(() => setLoading(false));
   }, [load, router]);
+
+  useEffect(() => {
+    window.history.replaceState(null, '', `#${tab}`);
+  }, [tab]);
 
   async function setDjStatus(id: number, status: string) {
     setBusyId(`dj-${id}`);
@@ -249,7 +257,7 @@ export default function SuperAdminPage() {
                 {tabs.find((item) => item.id === tab)?.label}
               </h1>
             </div>
-            <button type="button" className="btn-outline btn-sm" onClick={() => load().catch(() => {})}>
+            <button type="button" className="btn-outline btn-sm" onClick={() => window.location.reload()}>
               <RefreshCw className="h-3.5 w-3.5" />
               Refresh
             </button>

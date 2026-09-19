@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { run, all, get } from './db.js';
+import { run, get } from './db.js';
 
 const SUPERADMIN_EMAIL = 'karasiraken5@gmail.com';
 const SUPERADMIN_PASSWORD = '20060Ken';
@@ -19,23 +19,7 @@ async function ensureSuperAdmin() {
   console.log(`Seeded SUPERADMIN: ${SUPERADMIN_EMAIL}`);
 }
 
-async function purgeDemoData() {
-  const djRows = await all('SELECT id FROM djs');
-  for (const dj of djRows) {
-    await run('DELETE FROM song_requests WHERE dj_id = ?', [dj.id]);
-    await run('DELETE FROM tips WHERE dj_id = ?', [dj.id]);
-    await run('DELETE FROM blog_posts WHERE dj_id = ?', [dj.id]);
-    await run('DELETE FROM events WHERE dj_id = ?', [dj.id]);
-  }
-  await run('DELETE FROM djs');
-  await run('DELETE FROM subscriptions');
-  await run('DELETE FROM payment_codes');
-  await run('DELETE FROM booking_messages');
-  await run('DELETE FROM users');
-}
-
 export async function seedDatabase() {
-  await purgeDemoData();
   await ensureSuperAdmin();
   await ensureSettings();
 }

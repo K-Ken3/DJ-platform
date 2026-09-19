@@ -277,7 +277,10 @@ app.post('/api/dj/payment', authMiddleware, asyncHandler(async (req, res) => {
   }
 
   const me = await get('SELECT id, role FROM users WHERE id = ?', [req.user.id]);
-  if (!me || !['DJ', 'ADMIN'].includes(me.role)) {
+  if (!me) {
+    return res.status(401).json({ error: 'Your account no longer exists. Please sign in again or contact DJLink support.' });
+  }
+  if (!['DJ', 'ADMIN'].includes(me.role)) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
@@ -307,7 +310,10 @@ app.post('/api/dj/activate', authMiddleware, asyncHandler(async (req, res) => {
   }
 
   const me = await get('SELECT id, name, email, phone, role, status FROM users WHERE id = ?', [req.user.id]);
-  if (!me || !['DJ', 'ADMIN'].includes(me.role)) {
+  if (!me) {
+    return res.status(401).json({ error: 'Your account no longer exists. Please sign in again or contact DJLink support.' });
+  }
+  if (!['DJ', 'ADMIN'].includes(me.role)) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   if (me.status !== 'PENDING') {
