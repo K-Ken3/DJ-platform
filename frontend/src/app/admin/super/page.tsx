@@ -30,6 +30,13 @@ type TabId = 'overview' | 'djs' | 'payments' | 'branding';
 
 type SubscriptionRow = SubscriptionRecord & { user_name: string; user_email: string; user_status: string };
 
+const tabs: { id: TabId; label: string; icon: typeof Users }[] = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'djs', label: 'DJs', icon: Users },
+  { id: 'payments', label: 'Payments', icon: CreditCard },
+  { id: 'branding', label: 'Branding', icon: Palette },
+];
+
 const statusPill: Record<string, string> = {
   ACTIVE: 'border-emerald-700/40 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-400',
   PENDING: 'border-amber-700/40 bg-amber-500/10 text-amber-700 dark:border-amber-500/30 dark:text-amber-400',
@@ -182,13 +189,6 @@ export default function SuperAdminPage() {
   const filteredDjs = filter === 'ALL' ? djs : djs.filter((dj) => dj.status === filter);
   const pendingSubs = subscriptions.filter((sub) => sub.status === 'SUBMITTED');
   const pendingDjs = djs.filter((dj) => dj.status === 'PENDING');
-
-  const tabs: { id: TabId; label: string; icon: typeof Users }[] = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'djs', label: 'DJs', icon: Users },
-    { id: 'payments', label: 'Payments', icon: CreditCard },
-    { id: 'branding', label: 'Branding', icon: Palette },
-  ];
 
   return (
     <main className="min-h-screen bg-zinc-100 lg:pl-64 dark:bg-zinc-950">
