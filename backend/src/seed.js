@@ -29,6 +29,7 @@ async function purgeDemoData() {
   }
   await run('DELETE FROM djs');
   await run('DELETE FROM subscriptions');
+  await run('DELETE FROM payment_codes');
   await run('DELETE FROM booking_messages');
   await run('DELETE FROM users');
 }

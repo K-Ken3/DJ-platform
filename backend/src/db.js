@@ -152,11 +152,27 @@ export function initDb() {
       currency TEXT NOT NULL DEFAULT 'RWF',
       phone TEXT,
       transaction_reference TEXT,
+      payment_code TEXT,
       status TEXT NOT NULL DEFAULT 'SUBMITTED',
       submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       verified_at TEXT,
       verified_by INTEGER,
       FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS payment_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      user_id INTEGER NOT NULL,
+      amount REAL,
+      currency TEXT NOT NULL DEFAULT 'RWF',
+      status TEXT NOT NULL DEFAULT 'UNUSED',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_by INTEGER NOT NULL,
+      used_at TEXT,
+      used_by INTEGER,
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(created_by) REFERENCES users(id)
     );
   `;
 
@@ -182,6 +198,14 @@ export function initDb() {
         const bookingCols = await all('PRAGMA table_info(booking_messages)');
         if (!bookingCols.some((c) => c.name === 'dj_id')) {
           await run('ALTER TABLE booking_messages ADD COLUMN dj_id INTEGER');
+        }
+        const userCols = await all('PRAGMA table_info(users)');
+        if (!userCols.some((c) => c.name === 'phone')) {
+          await run('ALTER TABLE users ADD COLUMN phone TEXT');
+        }
+        const subCols = await all('PRAGMA table_info(subscriptions)');
+        if (!subCols.some((c) => c.name === 'payment_code')) {
+          await run('ALTER TABLE subscriptions ADD COLUMN payment_code TEXT');
         }
         resolve();
       } catch (migrationError) {

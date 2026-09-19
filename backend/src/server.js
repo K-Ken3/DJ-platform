@@ -86,6 +86,12 @@ function generateToken(user) {
   return jwt.sign({ id: user.id, email: user.email, role: user.role, status: user.status }, config.jwtSecret, { expiresIn: '7d' });
 }
 
+function generatePaymentCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const pick = (n) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return `DJL-${pick(4)}-${pick(4)}`;
+}
+
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -236,8 +242,8 @@ app.post('/api/auth/register', authLimiter, asyncHandler(async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await run(
-    `INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)`,
-    [name.trim(), normalizedEmail, passwordHash, 'DJ', 'PENDING']
+    `INSERT INTO users (name, email, phone, password_hash, role, status) VALUES (?, ?, ?, ?, ?, ?)`,
+    [name.trim(), normalizedEmail, typeof phone === 'string' ? phone.trim() : null, passwordHash, 'DJ', 'PENDING']
   );
 
   const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'dj';
@@ -291,6 +297,63 @@ app.post('/api/dj/payment', authMiddleware, asyncHandler(async (req, res) => {
   );
   const created = await get('SELECT * FROM subscriptions WHERE id = ?', [sub.id]);
   res.status(201).json({ subscription: created });
+}));
+
+app.post('/api/dj/activate', authMiddleware, asyncHandler(async (req, res) => {
+  const { code } = req.body || {};
+  const cleanCode = String(code || '').trim().toUpperCase();
+  if (cleanCode.length < 6) {
+    return res.status(400).json({ error: 'Please enter the payment confirmation code you received.' });
+  }
+
+  const me = await get('SELECT id, name, email, phone, role, status FROM users WHERE id = ?', [req.user.id]);
+  if (!me || !['DJ', 'ADMIN'].includes(me.role)) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  if (me.status !== 'PENDING') {
+    return res.status(400).json({ error: 'Your account is already active.' });
+  }
+
+  const row = await get('SELECT * FROM payment_codes WHERE code = ?', [cleanCode]);
+  if (!row) {
+    return res.status(400).json({ error: 'Invalid payment confirmation code.' });
+  }
+  if (row.status === 'USED') {
+    return res.status(400).json({ error: 'This payment confirmation code has already been used.' });
+  }
+  if (row.status === 'REVOKED') {
+    return res.status(400).json({ error: 'This payment confirmation code was revoked. Ask the platform owner for a new one.' });
+  }
+  if (row.user_id !== me.id) {
+    return res.status(400).json({ error: 'This payment confirmation code was not issued for your account.' });
+  }
+
+  const settings = await getSettings();
+  const fee = row.amount || Number(settings.subscription_fee) || config.subscriptionFee;
+  const now = new Date().toISOString();
+
+  await run('UPDATE payment_codes SET status = ?, used_at = ?, used_by = ? WHERE id = ?', ['USED', now, me.id, row.id]);
+  await run('UPDATE users SET status = ?, updated_at = ? WHERE id = ?', ['ACTIVE', now, me.id]);
+
+  const sub = await run(
+    `INSERT INTO subscriptions (user_id, amount, currency, phone, transaction_reference, payment_code, status, submitted_at, verified_at, verified_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [me.id, fee, 'RWF', me.phone || null, cleanCode, cleanCode, 'VERIFIED', now, now, row.created_by]
+  );
+  const subscription = await get('SELECT * FROM subscriptions WHERE id = ?', [sub.id]);
+
+  const dj = await getDjForUser(me.id);
+  const freshUser = await get('SELECT id, name, email, phone, role, status FROM users WHERE id = ?', [me.id]);
+  const token = generateToken(freshUser);
+  io.emit('user:status', freshUser);
+
+  res.json({
+    success: true,
+    token,
+    user: { id: freshUser.id, name: freshUser.name, email: freshUser.email, role: freshUser.role, status: freshUser.status },
+    subscription,
+    dj: dj ? { id: dj.id, name: dj.name, slug: dj.slug, logo: dj.logo, tagline: dj.tagline } : null,
+  });
 }));
 
 app.get('/api/registration-info', asyncHandler(async (req, res) => {
@@ -820,22 +883,106 @@ app.patch('/api/super/subscriptions/:id', authMiddleware, requireSuperAdmin, asy
   res.json({ subscription: updated, user: updatedUser });
 }));
 
+app.get('/api/super/payment-codes', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const rows = await all(
+    `SELECT pc.*, u.name AS dj_name, u.email AS dj_email, u.status AS dj_status
+     FROM payment_codes pc LEFT JOIN users u ON u.id = pc.user_id
+     ORDER BY pc.created_at DESC LIMIT 200`
+  );
+  res.json({ codes: rows });
+}));
+
+app.post('/api/super/payment-codes', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const { user_id, amount } = req.body || {};
+  const userId = Number(user_id);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ error: 'Please provide the DJ account to generate a code for.' });
+  }
+
+  const target = await get('SELECT id, name, email, phone, role, status FROM users WHERE id = ?', [userId]);
+  if (!target || !['DJ', 'ADMIN'].includes(target.role)) {
+    return res.status(404).json({ error: 'DJ account not found.' });
+  }
+  if (target.status !== 'PENDING') {
+    return res.status(400).json({ error: 'Only pending (unpaid) DJ accounts need activation codes.' });
+  }
+
+  const existing = await get(
+    "SELECT * FROM payment_codes WHERE user_id = ? AND status = 'UNUSED' ORDER BY id DESC LIMIT 1",
+    [userId]
+  );
+  if (existing) {
+    return res.json({ code: existing });
+  }
+
+  const settings = await getSettings();
+  const fee = typeof amount === 'number' && amount > 0 ? amount : Number(settings.subscription_fee) || config.subscriptionFee;
+
+  let codeStr = generatePaymentCode();
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const clash = await get('SELECT id FROM payment_codes WHERE code = ?', [codeStr]);
+    if (!clash) break;
+    codeStr = generatePaymentCode();
+  }
+
+  const created = await run(
+    `INSERT INTO payment_codes (code, user_id, amount, currency, status, created_by) VALUES (?, ?, ?, ?, 'UNUSED', ?)`,
+    [codeStr, userId, fee, 'RWF', req.dbUser.id]
+  );
+  const code = await get('SELECT * FROM payment_codes WHERE id = ?', [created.id]);
+  res.status(201).json({ code });
+}));
+
+app.patch('/api/super/payment-codes/:id', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const { status } = req.body || {};
+  if (status !== 'REVOKED') {
+    return res.status(400).json({ error: 'Only REVOKED is supported.' });
+  }
+  const code = await get('SELECT * FROM payment_codes WHERE id = ?', [req.params.id]);
+  if (!code) return res.status(404).json({ error: 'Code not found.' });
+  if (code.status === 'USED') {
+    return res.status(400).json({ error: 'A used code cannot be revoked.' });
+  }
+  await run('UPDATE payment_codes SET status = ? WHERE id = ?', ['REVOKED', code.id]);
+  const updated = await get('SELECT * FROM payment_codes WHERE id = ?', [code.id]);
+  res.json({ code: updated });
+}));
+
 /* ----------------------------- TIPS / SETTINGS ----------------------------- */
 
 app.get('/api/tips', async (req, res) => {
   const settings = await getSettings();
   const slug = String(req.query.slug || '').trim();
-  const dj = slug ? await get('SELECT id, name, slug, momo_number, momo_ussd, momo_account_name FROM djs WHERE slug = ?', [slug]) : null;
+  const dj = slug
+    ? await get('SELECT id, name, momo_number, momo_ussd, momo_account_name FROM djs WHERE slug = ?', [slug])
+    : null;
+
+  const currency = settings.currency || 'RWF';
+  const common = {
+    currency,
+    suggested_tips: settings.suggested_tips ? JSON.parse(settings.suggested_tips) : [],
+    tip_hint: settings.tip_hint || '',
+    djName: dj ? dj.name : 'DJ',
+  };
+
+  const tipsReady = Boolean(dj && (dj.momo_number || dj.momo_ussd));
+  if (!tipsReady) {
+    return res.json({
+      tips: [],
+      settings: { tipsEnabled: false, ...common },
+    });
+  }
+
+  const momoNumber = dj.momo_number || '';
+  const ussd = dj.momo_ussd || (momoNumber ? `*182*1*1*${momoNumber}#` : '');
   res.json({
     tips: [],
     settings: {
-      mtn_momo_number: (dj && dj.momo_number) || settings.mtn_momo_number || config.mtnMomoNumber,
-      mtn_momo_ussd: (dj && dj.momo_ussd) || settings.mtn_momo_ussd || config.mtnMomoUssd,
-      momo_account_name: (dj && (dj.momo_account_name || dj.name)) || settings.momo_account_name || config.momoAccountName,
-      currency: settings.currency || 'RWF',
-      suggested_tips: settings.suggested_tips ? JSON.parse(settings.suggested_tips) : [],
-      tip_hint: settings.tip_hint || '',
-      djName: dj ? dj.name : 'DJ',
+      tipsEnabled: true,
+      mtn_momo_number: momoNumber,
+      mtn_momo_ussd: ussd,
+      momo_account_name: dj.momo_account_name || dj.name || 'DJ',
+      ...common,
     },
   });
 });

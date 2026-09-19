@@ -7,8 +7,10 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
+  Copy,
   CreditCard,
   ExternalLink,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -22,7 +24,7 @@ import {
 import { Logo } from '@/components/site/Logo';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { api } from '@/lib/api';
-import type { SuperDj, SuperStats, SubscriptionRecord } from '@/lib/types';
+import type { PaymentCodeRow, SuperDj, SuperStats, SubscriptionRecord } from '@/lib/types';
 
 type TabId = 'overview' | 'djs' | 'payments' | 'branding';
 
@@ -59,16 +61,19 @@ export default function SuperAdminPage() {
   const [stats, setStats] = useState<SuperStats | null>(null);
   const [djs, setDjs] = useState<SuperDj[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
+  const [codes, setCodes] = useState<PaymentCodeRow[]>([]);
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED'>('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [statsData, djsData, subsData, meData] = await Promise.all([
+    const [statsData, djsData, subsData, codesData, meData] = await Promise.all([
       api<SuperStats>('/api/super/stats'),
       api<{ djs: SuperDj[] }>('/api/super/djs'),
       api<{ subscriptions: SubscriptionRow[] }>('/api/super/subscriptions'),
+      api<{ codes: PaymentCodeRow[] }>('/api/super/payment-codes'),
       api<{ user: { name: string; role: string } }>('/api/auth/me'),
     ]);
     if (meData.user.role !== 'SUPERADMIN') {
@@ -78,6 +83,7 @@ export default function SuperAdminPage() {
     setStats(statsData);
     setDjs(djsData.djs || []);
     setSubscriptions(subsData.subscriptions || []);
+    setCodes(codesData.codes || []);
     if (meData.user.name) setOwnerName(meData.user.name);
   }, [router]);
 
@@ -116,6 +122,40 @@ export default function SuperAdminPage() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function generateCode(userId: number) {
+    setBusyId(`gen-${userId}`);
+    setError('');
+    try {
+      await api('/api/super/payment-codes', { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate the payment code.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function revokeCode(id: number) {
+    setBusyId(`code-${id}`);
+    setError('');
+    try {
+      await api(`/api/super/payment-codes/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'REVOKED' }) });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not revoke the code.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function copyText(value: string, label: string) {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      await navigator.clipboard.writeText(value).catch(() => {});
+    }
+    setCopied(label);
+    window.setTimeout(() => setCopied(null), 1600);
   }
 
   function logout() {
@@ -393,8 +433,114 @@ export default function SuperAdminPage() {
 
           {tab === 'payments' && (
             <>
+              <div className="mb-4">
+                <h2 className="text-lg font-extrabold">Activation codes</h2>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Generate a confirmation code for a DJ who has paid. Share the code with them — they enter it on
+                  their pending card to activate, and a verified payment record is created below.
+                </p>
+              </div>
+
+              {pendingDjs.length === 0 ? (
+                <div className="card card-pad py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                  No pending DJs need activation codes.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingDjs.map((dj) => {
+                    const djCodes = codes.filter((c) => c.user_id === dj.id);
+                    const activeCode = djCodes.find((c) => c.status === 'UNUSED') || null;
+                    const usedCode = djCodes.find((c) => c.status === 'USED') || null;
+                    return (
+                      <div key={dj.id} className="card card-pad">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-lg font-extrabold">{dj.name}</h3>
+                              <Pill value={dj.status} />
+                            </div>
+                            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{dj.email}</p>
+                            {activeCode ? (
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <code className="rounded-xs border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-mono text-sm font-bold dark:border-zinc-800 dark:bg-zinc-900">
+                                  {activeCode.code}
+                                </code>
+                                <span className="text-xs text-emerald-600 dark:text-emerald-400">Unused</span>
+                                <button
+                                  type="button"
+                                  className="btn-outline btn-sm"
+                                  onClick={() => copyText(activeCode.code, `code-${activeCode.id}`)}
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                  {copied === `code-${activeCode.id}` ? 'Copied' : 'Copy'}
+                                </button>
+                              </div>
+                            ) : usedCode ? (
+                              <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">
+                                Code {usedCode.code} was used
+                                {usedCode.used_at ? ` on ${formatDate(usedCode.used_at)}` : ''} — account activated.
+                              </p>
+                            ) : (
+                              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">No code generated yet.</p>
+                            )}
+                          </div>
+                          {!activeCode && !usedCode && (
+                            <button
+                              type="button"
+                              className="btn-primary btn-sm"
+                              disabled={busyId === `gen-${dj.id}`}
+                              onClick={() => generateCode(dj.id)}
+                            >
+                              <KeyRound className="h-3.5 w-3.5" />
+                              {busyId === `gen-${dj.id}` ? 'Generating...' : 'Generate payment code'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {codes.filter((c) => c.status !== 'UNUSED').length > 0 && (
+                <div className="mt-8">
+                  <h2 className="text-lg font-extrabold">Recently issued codes</h2>
+                  <div className="mt-3 space-y-2">
+                    {codes
+                      .filter((c) => c.status !== 'UNUSED')
+                      .slice(0, 20)
+                      .map((code) => (
+                        <div key={code.id} className="card card-pad flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <code className="font-mono text-sm font-bold">{code.code}</code>
+                              <Pill value={code.status} />
+                            </div>
+                            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                              {code.dj_name || `DJ #${code.user_id}`} · issued {formatDate(code.created_at)}
+                              {code.status === 'REVOKED' ? ' · revoked by owner' : ''}
+                            </p>
+                          </div>
+                          {code.status === 'REVOKED' && (
+                            <button type="button" className="btn-outline btn-sm" disabled={busyId === `code-${code.id}`} onClick={() => generateCode(code.user_id)}>
+                              Re-issue
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-8 mb-4">
+                <h2 className="text-lg font-extrabold">Payment records</h2>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Confirmed membership payments. Each record maps to the DJ who paid.
+                </p>
+              </div>
+
               {subscriptions.length === 0 ? (
-                <div className="card card-pad py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">No payments submitted yet.</div>
+                <div className="card card-pad py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">No payments yet. Once a DJ activates with a code, their payment record appears here.</div>
               ) : (
                 <div className="space-y-3">
                   {subscriptions.map((sub) => (
@@ -408,12 +554,13 @@ export default function SuperAdminPage() {
                           </div>
                           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{sub.user_email}</p>
                           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
+                            {sub.payment_code && <span>Code: <span className="font-mono">{sub.payment_code}</span></span>}
                             <span>Ref: <span className="font-mono">{sub.transaction_reference || '—'}</span></span>
                             <span>Phone: {sub.phone || '—'}</span>
                             <span>
                               {sub.amount ? `${sub.amount.toLocaleString()} ${sub.currency}` : 'Amount unknown'}
                             </span>
-                            <span>Submitted {formatDate(sub.submitted_at)}</span>
+                            <span>Paid {formatDate(sub.verified_at || sub.submitted_at)}</span>
                           </div>
                         </div>
 

@@ -116,10 +116,27 @@ export type SubscriptionRecord = {
   currency: string;
   phone?: string | null;
   transaction_reference?: string | null;
+  payment_code?: string | null;
   status: 'SUBMITTED' | 'VERIFIED' | 'REJECTED';
   submitted_at: string;
   verified_at?: string | null;
   verified_by?: number | null;
+};
+
+export type PaymentCodeRow = {
+  id: number;
+  code: string;
+  user_id: number;
+  amount?: number | null;
+  currency: string;
+  status: 'UNUSED' | 'USED' | 'REVOKED';
+  created_at: string;
+  created_by: number;
+  used_at?: string | null;
+  used_by?: number | null;
+  dj_name?: string | null;
+  dj_email?: string | null;
+  dj_status?: string | null;
 };
 
 export type SuperDj = {

@@ -21,9 +21,10 @@ type DjEvent = {
 };
 
 type TipSettings = {
-  mtn_momo_number: string;
-  mtn_momo_ussd: string;
-  momo_account_name: string;
+  tipsEnabled: boolean;
+  mtn_momo_number?: string;
+  mtn_momo_ussd?: string;
+  momo_account_name?: string;
   currency: string;
   suggested_tips: string[];
   tip_hint: string;
@@ -31,9 +32,10 @@ type TipSettings = {
 };
 
 const fallbackTips: TipSettings = {
-  mtn_momo_number: '0788205500',
-  mtn_momo_ussd: '*182*8*1*1540166*22000#',
-  momo_account_name: 'Ken',
+  tipsEnabled: false,
+  mtn_momo_number: '',
+  mtn_momo_ussd: '',
+  momo_account_name: '',
   currency: 'RWF',
   suggested_tips: ['1000', '2000', '5000'],
   tip_hint: 'Send a tip via MTN Mobile Money to support live music.',
@@ -81,6 +83,8 @@ export default function RequestPage({
   const [message, setMessage] = useState('');
   const [tipOpen, setTipOpen] = useState(false);
   const [tipState, setTipState] = useState<'idle' | 'opening' | 'fallback'>('idle');
+  const [tipAmount, setTipAmount] = useState('');
+  const [dialCode, setDialCode] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
@@ -127,21 +131,31 @@ export default function RequestPage({
   }
 
   function handleTip() {
+    setTipAmount('');
     setTipOpen(true);
+    setTipState('idle');
+  }
+
+  function openMomo(amount: string) {
+    if (!tips.tipsEnabled) return;
     setTipState('opening');
 
-    const dialerUrl = `tel:${tips.mtn_momo_ussd}`;
+    const momo = tips.mtn_momo_number || '';
+    const dial = momo
+      ? amount
+        ? `*182*1*1*${momo}*${amount}#`
+        : `*182*1*1*${momo}#`
+      : (tips.mtn_momo_ussd || '');
+    setDialCode(dial);
 
-    const timer = window.setTimeout(() => {
+    window.setTimeout(() => {
       try {
-        window.location.href = dialerUrl;
+        window.location.href = `tel:${dial}`;
       } catch {
         // ignore — fall back to copy flow below
       }
       window.setTimeout(() => setTipState('fallback'), 1200);
     }, 250);
-
-    return () => window.clearTimeout(timer);
   }
 
   async function copyText(value: string, label: string) {
@@ -301,7 +315,17 @@ export default function RequestPage({
                   <Phone className="h-8 w-8 text-accent" />
                   <p className="mt-3 font-semibold">Opening MTN Mobile Money...</p>
                   <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    If nothing happens, copy the code below.
+                    Confirm the payment on your phone.
+                  </p>
+                </div>
+              ) : !tips.tipsEnabled ? (
+                <div className="flex flex-col items-center py-8 text-center">
+                  <span className="flex h-14 w-14 items-center justify-center bg-zinc-500/10 text-zinc-500 dark:text-zinc-400">
+                    <Music2 className="h-8 w-8" />
+                  </span>
+                  <h2 className="mt-4 text-lg font-extrabold">Tipping is not available yet</h2>
+                  <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    {tips.djName || 'This DJ'} has not set up mobile money tipping yet. Check back later.
                   </p>
                 </div>
               ) : (
@@ -311,60 +335,63 @@ export default function RequestPage({
                     <span className="pill pill-played">MTN MoMo</span>
                   </div>
                   <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-                    {tips.tip_hint || 'Your tip goes straight to the DJ via MTN Mobile Money.'}
+                    {tips.tip_hint || `Your tip goes straight to ${tips.momo_account_name || tips.djName} via MTN Mobile Money.`}
                   </p>
 
                   <div className="mt-5 space-y-4">
                     <div className="surface-2 p-4">
-                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Account name</p>
-                      <p className="mt-1 text-base font-bold">{tips.momo_account_name || 'Ken'}</p>
-                    </div>
-
-                    <div className="surface-2 p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">USSD code</p>
-                          <p className="mt-1 font-mono text-base font-bold">{tips.mtn_momo_ussd}</p>
-                        </div>
-                        <button type="button" className="btn-outline btn-sm" onClick={() => copyText(tips.mtn_momo_ussd, 'ussd')}>
-                          <Copy className="h-3.5 w-3.5" />
-                          {copied === 'ussd' ? 'Copied' : 'Copy'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="surface-2 p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Number</p>
-                          <p className="mt-1 text-base font-bold">{tips.mtn_momo_number}</p>
-                        </div>
-                        <button type="button" className="btn-outline btn-sm" onClick={() => copyText(tips.mtn_momo_number, 'number')}>
-                          <Copy className="h-3.5 w-3.5" />
-                          {copied === 'number' ? 'Copied' : 'Copy'}
-                        </button>
-                      </div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Paying</p>
+                      <p className="mt-1 text-base font-bold">{tips.momo_account_name || tips.djName || 'DJ'}</p>
+                      <p className="mt-0.5 font-mono text-sm text-zinc-500 dark:text-zinc-400">{tips.mtn_momo_number}</p>
                     </div>
                   </div>
 
                   {tips.suggested_tips.length > 0 && (
                     <div className="mt-5">
                       <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                        Suggested amounts ({tips.currency})
+                        Choose amount ({tips.currency})
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {tips.suggested_tips.map((amount) => (
-                          <span key={amount} className="btn-outline btn-sm cursor-default">
+                          <button
+                            key={amount}
+                            type="button"
+                            onClick={() => setTipAmount(amount)}
+                            className={`btn-sm ${tipAmount === amount ? 'btn-primary' : 'btn-outline'}`}
+                          >
                             {Number(amount).toLocaleString()} {tips.currency}
-                          </span>
+                          </button>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <p className="mt-5 flex items-start gap-2 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                  <button
+                    type="button"
+                    className="btn-primary btn-lg btn-block mt-5"
+                    disabled={!tipAmount}
+                    onClick={() => openMomo(tipAmount)}
+                  >
+                    {tipAmount ? `Open MoMo & send ${Number(tipAmount).toLocaleString()} ${tips.currency}` : 'Select an amount above'}
+                  </button>
+
+                  {tipState === 'fallback' ? (
+                    <div className="surface-2 mt-4 flex items-center justify-between p-4">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Mobile money code</p>
+                        <p className="mt-1 truncate font-mono text-sm font-bold">{dialCode}</p>
+                      </div>
+                      <button type="button" className="btn-outline btn-sm" onClick={() => copyText(dialCode, 'dial')}>
+                        <Copy className="h-3.5 w-3.5" />
+                        {copied === 'dial' ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+                  ) : null}
+
+                  <p className="mt-4 flex items-start gap-2 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
                     <Music2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    Open your phone dialer and enter the code above to send a tip. We never ask for your MoMo PIN.
+                    Your phone dialer opens with {tips.mtn_momo_number} and your chosen amount pre-filled. We never
+                    ask for your MoMo PIN.
                   </p>
                 </>
               )}

@@ -63,8 +63,10 @@ export function SettingsTab() {
     <form onSubmit={save} className="grid gap-4">
       <div>
         <p className="mb-4 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-          Tipping uses MTN Mobile Money USSD. Guests tap <strong>Donate a tip</strong>, the dialer opens with the code
-          pre-filled, and they complete the flow on their phone. We never collect MoMo PINs on this site.
+          These MTN Mobile Money details belong to the <strong>DJ account activation payment</strong> — they are shown
+          to new DJs on their pending card so they can pay the membership fee. The USSD code here is
+          <strong> not used for guest tipping</strong>; each DJ sets their own receiving number on their Profile so
+          tips go straight to them with the guest's chosen amount.
         </p>
       </div>
 

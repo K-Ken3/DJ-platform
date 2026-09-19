@@ -3,7 +3,6 @@
 import {
   Ban,
   CalendarDays,
-  CheckCircle2,
   Clock,
   Copy,
   FileText,
@@ -78,10 +77,8 @@ export default function AdminDashboardPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [gate, setGate] = useState<null | { status: string; name: string }>(null);
-  const [subscription, setSubscription] = useState<SubscriptionRecord | null>(null);
   const [registrationInfo, setRegistrationInfo] = useState<RegistrationInfo | null>(null);
-  const [reference, setReference] = useState('');
-  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentCode, setPaymentCode] = useState('');
   const [gateError, setGateError] = useState('');
 
   const pushToast = useCallback((title: string, body: string) => {
@@ -121,7 +118,6 @@ export default function AdminDashboardPage() {
         if (me.user.status !== 'ACTIVE') {
           setGate({ status: me.user.status, name: me.user.name });
           setDjName(me.user.name);
-          setSubscription(me.subscription);
           if (me.user.status === 'PENDING') {
             api<RegistrationInfo>('/api/registration-info').then(setRegistrationInfo).catch(() => {});
           }
@@ -220,18 +216,19 @@ export default function AdminDashboardPage() {
     router.push('/admin/login');
   }
 
-  async function submitPayment(event: React.FormEvent<HTMLFormElement>) {
+  async function activateAccount(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setGateError('');
     try {
-      const data = await api<{ subscription: SubscriptionRecord }>('/api/dj/payment', {
+      const data = await api<{ token: string }>('/api/dj/activate', {
         method: 'POST',
-        body: JSON.stringify({ reference, amount: registrationInfo?.subscription_fee }),
+        body: JSON.stringify({ code: paymentCode }),
       });
-      setSubscription(data.subscription);
-      setShowPaymentForm(false);
+      localStorage.setItem('dj_token', data.token);
+      setToken(data.token);
+      setGate(null);
     } catch (err) {
-      setGateError(err instanceof Error ? err.message : 'Could not submit payment reference.');
+      setGateError(err instanceof Error ? err.message : 'Could not activate your account.');
     }
   }
 
@@ -246,7 +243,6 @@ export default function AdminDashboardPage() {
   if (gate) {
     const pending = gate.status === 'PENDING';
     const blocked = gate.status === 'REJECTED' || gate.status === 'SUSPENDED';
-    const paymentSent = subscription && subscription.status === 'SUBMITTED';
 
     return (
       <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-100 px-4 py-12 dark:bg-zinc-950">
@@ -281,25 +277,6 @@ export default function AdminDashboardPage() {
                   Contact support
                 </a>
               </div>
-            ) : pending && paymentSent && !showPaymentForm ? (
-              <div className="text-center">
-                <span className="mx-auto flex h-14 w-14 items-center justify-center bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="h-8 w-8" />
-                </span>
-                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">Payment submitted</h1>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  Reference <span className="font-mono font-semibold">{subscription?.transaction_reference}</span> is
-                  being verified. Your account will be activated within 24 hours.
-                </p>
-                <div className="mt-6 flex flex-col gap-3">
-                  <button type="button" className="btn-outline" onClick={() => setShowPaymentForm(true)}>
-                    Update reference
-                  </button>
-                  <button type="button" className="btn-outline" onClick={logout}>
-                    Log out
-                  </button>
-                </div>
-              </div>
             ) : pending ? (
               <>
                 <span className="pill pill-new w-fit">
@@ -308,8 +285,8 @@ export default function AdminDashboardPage() {
                 </span>
                 <h1 className="mt-4 text-2xl font-extrabold tracking-tight">Activate your account</h1>
                 <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-                  Pay the one-time membership with MTN Mobile Money, then submit the transaction reference for
-                  verification.
+                  Pay the one-time membership with MTN Mobile Money, then enter the payment confirmation code you
+                  received from DJLink to continue to your dashboard.
                 </p>
 
                 <div className="mt-6 space-y-3">
@@ -356,22 +333,28 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
 
-                <form onSubmit={submitPayment} className="mt-6 grid gap-4">
+                <p className="mt-4 flex items-start gap-2 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                  <Inbox className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  Dial the USSD code, confirm the payment, then enter the confirmation code DJLink gives you.
+                </p>
+
+                <form onSubmit={activateAccount} className="mt-6 grid gap-4">
                   <div>
-                    <label htmlFor="gate-reference">Transaction reference</label>
+                    <label htmlFor="gate-code">Payment confirmation code</label>
                     <input
-                      id="gate-reference"
+                      id="gate-code"
                       type="text"
-                      value={reference}
-                      onChange={(event) => setReference(event.target.value)}
-                      placeholder="e.g. MP240917.1234.A56789"
+                      value={paymentCode}
+                      onChange={(event) => setPaymentCode(event.target.value.toUpperCase())}
+                      placeholder="DJL-XXXX-XXXX"
+                      className="font-mono uppercase"
                       required
-                      minLength={4}
+                      minLength={6}
                     />
                   </div>
                   {gateError && <p className="rounded-xs border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">{gateError}</p>}
                   <button type="submit" className="btn-primary btn-lg">
-                    Submit payment reference
+                    Activate my account
                   </button>
                 </form>
               </>
