@@ -23,7 +23,6 @@ type DjEvent = {
 type TipSettings = {
   tipsEnabled: boolean;
   mtn_momo_number?: string;
-  mtn_momo_ussd?: string;
   momo_account_name?: string;
   currency: string;
   suggested_tips: string[];
@@ -34,7 +33,6 @@ type TipSettings = {
 const fallbackTips: TipSettings = {
   tipsEnabled: false,
   mtn_momo_number: '',
-  mtn_momo_ussd: '',
   momo_account_name: '',
   currency: 'RWF',
   suggested_tips: ['1000', '2000', '5000'],
@@ -141,11 +139,7 @@ export default function RequestPage({
     setTipState('opening');
 
     const momo = tips.mtn_momo_number || '';
-    const dial = momo
-      ? amount
-        ? `*182*1*1*${momo}*${amount}#`
-        : `*182*1*1*${momo}#`
-      : (tips.mtn_momo_ussd || '');
+    const dial = momo ? (amount ? `*182*1*1*${momo}*${amount}#` : `*182*1*1*${momo}#`) : '';
     setDialCode(dial);
 
     window.setTimeout(() => {

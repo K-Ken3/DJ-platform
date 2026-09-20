@@ -36,7 +36,6 @@ export type BlogPost = {
 
 export type AdminSettings = {
   mtn_momo_number: string;
-  mtn_momo_ussd: string;
   momo_account_name: string;
   currency: string;
   suggested_tips: string[];
@@ -52,6 +51,19 @@ export type Overview = {
   requests_this_event: number;
   requests_this_week: number;
   active_event: EventItem | null;
+};
+
+export type DayCount = { day: string; n: number };
+export type SongCount = { song_name: string; artist_name: string; times: number };
+
+export type NotificationItem = {
+  id: string;
+  kind: 'error' | 'warning' | 'info' | 'success';
+  title: string;
+  body: string;
+  user_id?: number;
+  action?: string;
+  created_at?: string;
 };
 
 export type DjProfile = {
@@ -135,22 +147,6 @@ export type SubscriptionState = {
   cutoffAt?: string | null;
 };
 
-export type PaymentCodeRow = {
-  id: number;
-  code: string;
-  user_id: number;
-  amount?: number | null;
-  currency: string;
-  status: 'UNUSED' | 'USED' | 'REVOKED';
-  created_at: string;
-  created_by: number;
-  used_at?: string | null;
-  used_by?: number | null;
-  dj_name?: string | null;
-  dj_email?: string | null;
-  dj_status?: string | null;
-};
-
 export type SuperDj = {
   id: number;
   name: string;
@@ -199,6 +195,8 @@ export type SuperStats = {
   revenue_usd_estimate: number;
   renewals_due: number;
   renewals_expired: number;
+  top_songs?: SongCount[];
+  requests_by_day?: DayCount[];
 };
 
 export type RegistrationInfo = {
@@ -206,7 +204,7 @@ export type RegistrationInfo = {
   subscription_fee_usd: number;
   usd_rwf_rate: number;
   currency: string;
+  free_trial_days: number;
   mtn_momo_number: string;
-  mtn_momo_ussd: string;
   momo_account_name: string;
 };

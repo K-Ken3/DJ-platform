@@ -35,7 +35,6 @@ export const config = {
   jwtSecret,
   databasePath: process.env.DATABASE_PATH || path.resolve(__dirname, '../data/dj-platform.db'),
   mtnMomoNumber: process.env.MTN_MOMO_NUMBER || '0788205500',
-  mtnMomoUssd: process.env.MTN_MOMO_USSD || '*182*8*1*1540166*22000#',
   momoAccountName: process.env.MOMO_ACCOUNT_NAME || 'Ken',
   // Monthly membership: $5/month, collected manually via MTN Mobile Money.
   subscriptionFee: Number(process.env.SUBSCRIPTION_FEE || 7500),

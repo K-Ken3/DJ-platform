@@ -60,8 +60,8 @@ const fallbackInfo: RegistrationInfo = {
   subscription_fee_usd: 5,
   usd_rwf_rate: 1469,
   currency: 'RWF',
+  free_trial_days: 30,
   mtn_momo_number: '0788205500',
-  mtn_momo_ussd: '*182*8*1*1540166*7500#',
   momo_account_name: 'Ken',
 };
 
@@ -248,20 +248,21 @@ export default async function HomePage() {
               ${info.subscription_fee_usd || 5} <span className="text-lg font-bold text-zinc-400">USD / month</span>
             </p>
             <p className="mt-1 text-sm font-semibold text-zinc-500 dark:text-zinc-400">
-              ≈ {info.subscription_fee.toLocaleString()} {info.currency} to pay each month
+              after a {info.free_trial_days || 30}-day free trial
             </p>
             <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-              Monthly membership. Pay via MTN Mobile Money and our team confirms your payment each month.
+              ≈ {info.subscription_fee.toLocaleString()} {info.currency} each month. Pay via MTN Mobile Money and DJLink
+              confirms your payment each month.
             </p>
 
             <ul className="mt-6 space-y-3 border-t border-zinc-200 pt-6 text-sm text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
               <li className="flex items-start gap-2.5">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 bg-accent" />
-                Pay the $5 monthly membership with MTN Mobile Money.
+                Start free with a {info.free_trial_days || 30}-day trial — instant live page.
               </li>
               <li className="flex items-start gap-2.5">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 bg-accent" />
-                Our team verifies and activates your profile within 24 hours.
+                Then {info.subscription_fee.toLocaleString()} {info.currency} ($5) per month to stay live.
               </li>
             </ul>
 

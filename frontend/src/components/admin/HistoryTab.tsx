@@ -1,8 +1,8 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Search } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, downloadCsv } from '@/lib/api';
 import type { EventItem, RequestItem } from '@/lib/types';
 import { RelativeTime } from '@/lib/time';
 
@@ -47,10 +47,11 @@ export function HistoryTab({ events }: { events: EventItem[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <label htmlFor="h-status">Status</label>
-          <select id="h-status" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label htmlFor="h-status">Status</label>
+            <select id="h-status" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}>
             <option value="ALL">All statuses</option>
             <option value="NEW">New</option>
             <option value="PLAYED">Played</option>
@@ -86,6 +87,15 @@ export function HistoryTab({ events }: { events: EventItem[] }) {
           <label htmlFor="h-date">Date</label>
           <input id="h-date" type="date" value={date} onChange={(event) => { setDate(event.target.value); setOffset(0); }} />
         </div>
+      </div>
+      <button
+        type="button"
+        className="btn-outline btn-sm"
+        onClick={() => downloadCsv('/api/admin/requests/export.csv', 'requests.csv').catch((err) => alert(err instanceof Error ? err.message : 'Export failed'))}
+      >
+        <Download className="h-3.5 w-3.5" />
+        Export CSV
+      </button>
       </div>
 
       {loading ? (

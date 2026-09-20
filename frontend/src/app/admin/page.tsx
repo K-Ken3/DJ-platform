@@ -2,8 +2,8 @@
 
 import {
   Ban,
+  Bell,
   CalendarDays,
-  Clock,
   Copy,
   FileText,
   Inbox,
@@ -16,6 +16,7 @@ import {
   ScrollText,
   Settings2,
   ShieldAlert,
+  TrendingUp,
   UserCog,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,9 +31,10 @@ import { LiveQueue, StatCards } from '@/components/admin/LiveQueue';
 import { MessagesTab } from '@/components/admin/MessagesTab';
 import { ProfileTab } from '@/components/admin/ProfileTab';
 import { SettingsTab } from '@/components/admin/SettingsTab';
+import { NotificationsPanel } from '@/components/admin/NotificationsPanel';
 import { BACKEND_URL, api } from '@/lib/api';
 import { playNotificationSound } from '@/lib/sound';
-import type { EventItem, Overview, RegistrationInfo, RequestItem, SubscriptionRecord, SubscriptionState } from '@/lib/types';
+import type { DayCount, EventItem, Overview, RegistrationInfo, RequestItem, SongCount, SubscriptionRecord, SubscriptionState } from '@/lib/types';
 
 type TabId = 'live' | 'history' | 'events' | 'blog' | 'profile' | 'settings' | 'messages';
 
@@ -80,8 +82,8 @@ export default function AdminDashboardPage() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [gate, setGate] = useState<null | { status: string; name: string; subState?: SubscriptionState | null }>(null);
   const [registrationInfo, setRegistrationInfo] = useState<RegistrationInfo | null>(null);
-  const [paymentCode, setPaymentCode] = useState('');
-  const [gateError, setGateError] = useState('');
+  const [popular, setPopular] = useState<SongCount[]>([]);
+  const [requestsByDay, setRequestsByDay] = useState<DayCount[]>([]);
 
   const pushToast = useCallback((title: string, body: string) => {
     const id = Date.now() + Math.random();
@@ -100,12 +102,14 @@ export default function AdminDashboardPage() {
 
   const loadDashboard = useCallback(async () => {
     const [overviewData, statsData] = await Promise.all([
-      api<{ overview: Overview }>('/api/admin/overview'),
+      api<{ overview: Overview; popular?: SongCount[]; requests_by_day?: DayCount[] }>('/api/admin/overview'),
       api<{ requests: RequestItem[]; events: EventItem[]; dj: { name: string; logo?: string | null } }>('/api/admin/stats'),
     ]);
     setOverview(overviewData.overview);
     setRequests(statsData.requests || []);
     setEvents(statsData.events || []);
+    setPopular(overviewData.popular || []);
+    setRequestsByDay(overviewData.requests_by_day || []);
     if (statsData.dj?.name) setDjName(statsData.dj.name);
   }, []);
 
@@ -120,15 +124,14 @@ export default function AdminDashboardPage() {
         if (me.user.status !== 'ACTIVE') {
           setGate({ status: me.user.status, name: me.user.name });
           setDjName(me.user.name);
-          if (me.user.status === 'PENDING') {
-            api<RegistrationInfo>('/api/registration-info').then(setRegistrationInfo).catch(() => {});
-          }
+          api<RegistrationInfo>('/api/registration-info').then(setRegistrationInfo).catch(() => {});
           setLoading(false);
           return;
         }
         if (me.subscription_state?.expired) {
           setGate({ status: 'EXPIRED', name: me.user.name, subState: me.subscription_state });
           setDjName(me.user.name);
+          api<RegistrationInfo>('/api/registration-info').then(setRegistrationInfo).catch(() => {});
           setLoading(false);
           return;
         }
@@ -249,22 +252,6 @@ export default function AdminDashboardPage() {
     router.push('/admin/login');
   }
 
-  async function activateAccount(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setGateError('');
-    try {
-      const data = await api<{ token: string }>('/api/dj/activate', {
-        method: 'POST',
-        body: JSON.stringify({ code: paymentCode }),
-      });
-      localStorage.setItem('dj_token', data.token);
-      setToken(data.token);
-      setGate(null);
-    } catch (err) {
-      setGateError(err instanceof Error ? err.message : 'Could not activate your account.');
-    }
-  }
-
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -273,8 +260,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  if (gate) {
-    const pending = gate.status === 'PENDING';
+if (gate) {
     const blocked = gate.status === 'REJECTED' || gate.status === 'SUSPENDED';
 
     return (
@@ -299,17 +285,17 @@ export default function AdminDashboardPage() {
                 <span className="mx-auto flex h-14 w-14 items-center justify-center bg-amber-500/10 text-amber-600 dark:text-amber-400">
                   <ShieldAlert className="h-8 w-8" />
                 </span>
-                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">Membership lapsed</h1>
+                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">Free trial ended</h1>
                 <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  Your monthly DJLink membership has expired. Pay the renewal fee to keep your dashboard and live request
-                  page active.
+                  Your 30-day free trial has finished. Pay the monthly membership to reopen your dashboard and live song
+                  request page.
                 </p>
 
                 <div className="mt-6 space-y-3 text-left">
                   <div className="surface-2 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Renewal fee</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Monthly membership</p>
                     <p className="mt-1 text-lg font-extrabold">
-                      ${registrationInfo?.subscription_fee_usd ?? 5} <span className="text-sm font-bold text-zinc-400">USD</span>
+                      ${registrationInfo?.subscription_fee_usd ?? 5} <span className="text-sm font-bold text-zinc-400">USD / month</span>
                     </p>
                     <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                       ≈ {(registrationInfo?.subscription_fee ?? 7500).toLocaleString()} {registrationInfo?.currency || 'RWF'} · MTN Mobile Money
@@ -318,95 +304,6 @@ export default function AdminDashboardPage() {
                   <div className="surface-2 p-4">
                     <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Account name</p>
                     <p className="mt-1 text-base font-bold">{registrationInfo?.momo_account_name || 'Ken'}</p>
-                  </div>
-                  <div className="surface-2 flex items-center justify-between p-4">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">USSD code</p>
-                      <p className="mt-1 font-mono text-base font-bold">{registrationInfo?.mtn_momo_ussd || '*182*8*1*1540166*7500#'}</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-outline btn-sm"
-                      onClick={() => navigator.clipboard?.writeText(registrationInfo?.mtn_momo_ussd || '')}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </button>
-                  </div>
-                  {gate.subState?.cutoffAt ? (
-                    <p className="flex items-start gap-2 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-                      <Inbox className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      Locked since {new Date(gate.subState.cutoffAt).toLocaleDateString()}. After DJLink confirms your
-                      monthly payment this screen goes away.
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="mt-6 flex flex-col gap-2">
-                  <button type="button" className="btn-primary" onClick={refreshStatus}>
-                    <RefreshCw className="h-4 w-4" />
-                    I have paid — check now
-                  </button>
-                  <a href="/#contact" className="btn-ghost">
-                    Contact support
-                  </a>
-                </div>
-              </div>
-            ) : blocked ? (
-              <div className="text-center">
-                <span className="mx-auto flex h-14 w-14 items-center justify-center bg-red-500/10 text-red-600 dark:text-red-400">
-                  <Ban className="h-8 w-8" />
-                </span>
-                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
-                  {gate.status === 'SUSPENDED' ? 'Account suspended' : 'Application not approved'}
-                </h1>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  Your DJ account is currently <span className="font-semibold">{gate.status.toLowerCase()}</span>. Please
-                  contact the DJLink team if you think this is a mistake.
-                </p>
-                <a href="/#contact" className="btn-primary mt-6">
-                  Contact support
-                </a>
-              </div>
-            ) : pending ? (
-              <>
-                <span className="pill pill-new w-fit">
-                  <Clock className="h-3 w-3" />
-                  Pending approval
-                </span>
-                <h1 className="mt-4 text-2xl font-extrabold tracking-tight">Activate your account</h1>
-                <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-                  Pay the monthly membership with MTN Mobile Money, then enter the payment confirmation code you received
-                  from DJLink to continue to your dashboard.
-                </p>
-
-                <div className="mt-6 space-y-3">
-                  <div className="surface-2 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Monthly membership</p>
-                    <p className="mt-1 text-lg font-extrabold">
-                      ${registrationInfo?.subscription_fee_usd ?? 5} <span className="text-sm font-bold text-zinc-400">USD / month</span>
-                    </p>
-                    <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                      ≈ {(registrationInfo?.subscription_fee ?? 7500).toLocaleString()} {registrationInfo?.currency || 'RWF'} to pay
-                    </p>
-                  </div>
-                  <div className="surface-2 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Account name</p>
-                    <p className="mt-1 text-base font-bold">{registrationInfo?.momo_account_name || 'Ken'}</p>
-                  </div>
-                  <div className="surface-2 flex items-center justify-between p-4">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">USSD code</p>
-                      <p className="mt-1 font-mono text-base font-bold">{registrationInfo?.mtn_momo_ussd || '*182*8*1*1540166*7500#'}</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-outline btn-sm"
-                      onClick={() => navigator.clipboard?.writeText(registrationInfo?.mtn_momo_ussd || '')}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </button>
                   </div>
                   <div className="surface-2 flex items-center justify-between p-4">
                     <div>
@@ -422,34 +319,48 @@ export default function AdminDashboardPage() {
                       Copy
                     </button>
                   </div>
+                  {gate.subState?.cutoffAt ? (
+                    <p className="flex items-start gap-2 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                      <Inbox className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      Account locked since {new Date(gate.subState.cutoffAt).toLocaleDateString()}. Send the monthly fee to
+                      the MoMo number above, then tap “I have paid”.
+                    </p>
+                  ) : (
+                    <p className="flex items-start gap-2 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                      <Inbox className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      Send the monthly fee to the MoMo number above, then tap “I have paid”. DJLink confirms your payment
+                      and your dashboard reopens.
+                    </p>
+                  )}
                 </div>
 
-                <p className="mt-4 flex items-start gap-2 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-                  <Inbox className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  Dial the USSD code, confirm the payment, then enter the confirmation code DJLink gives you.
-                </p>
-
-                <form onSubmit={activateAccount} className="mt-6 grid gap-4">
-                  <div>
-                    <label htmlFor="gate-code">Payment confirmation code</label>
-                    <input
-                      id="gate-code"
-                      type="text"
-                      value={paymentCode}
-                      onChange={(event) => setPaymentCode(event.target.value.toUpperCase())}
-                      placeholder="DJL-XXXX-XXXX"
-                      className="font-mono uppercase"
-                      required
-                      minLength={6}
-                    />
-                  </div>
-                  {gateError && <p className="rounded-xs border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">{gateError}</p>}
-                  <button type="submit" className="btn-primary btn-lg">
-                    Activate my account
+                <div className="mt-6 flex flex-col gap-2">
+                  <button type="button" className="btn-primary" onClick={refreshStatus}>
+                    <RefreshCw className="h-4 w-4" />
+                    I have paid — check now
                   </button>
-                </form>
-              </>
-            ) : null}
+                  <a href="/#contact" className="btn-ghost">
+                    Contact support
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center bg-red-500/10 text-red-600 dark:text-red-400">
+                  <Ban className="h-8 w-8" />
+                </span>
+                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
+                  {gate.status === 'SUSPENDED' ? 'Account suspended' : 'Application not approved'}
+                </h1>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  Your DJ account is currently <span className="font-semibold">{gate.status.toLowerCase()}</span>. Please
+                  contact the DJLink team if you think this is a mistake.
+                </p>
+                <a href="/#contact" className="btn-primary mt-6">
+                  Contact support
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -545,6 +456,7 @@ export default function AdminDashboardPage() {
               <span className="text-sm font-extrabold">{djName}</span>
             </div>
             <div className="flex items-center gap-2">
+              <NotificationsPanel />
               <span className={`h-2 w-2 rounded-full ${socketLive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
               <button type="button" className="btn-ghost -mr-2" onClick={logout} aria-label="Log out">
                 <LogOut className="h-4 w-4" />
@@ -555,15 +467,18 @@ export default function AdminDashboardPage() {
 
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
           {/* Desktop header */}
-          <header className="mb-6 hidden items-center justify-between gap-4 lg:flex">
+          <header className="mb-6 flex items-center justify-between gap-4 lg:flex">
             <div>
               <p className="eyebrow">DJ Admin</p>
               <h1 className="text-2xl font-extrabold tracking-tight">{tabs.find((item) => item.id === tab)?.label}</h1>
             </div>
-            <span className={`inline-flex items-center gap-2 rounded-xs border px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${socketLive ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400' : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400'}`}>
-              <span className={`h-2 w-2 rounded-full ${socketLive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              {socketLive ? 'Live' : 'Reconnecting...'}
-            </span>
+            <div className="flex items-center gap-3">
+              <NotificationsPanel />
+              <span className={`inline-flex items-center gap-2 rounded-xs border px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${socketLive ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400' : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400'}`}>
+                <span className={`h-2 w-2 rounded-full ${socketLive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                {socketLive ? 'Live' : 'Reconnecting...'}
+              </span>
+            </div>
           </header>
 
           <div className="mb-4 flex items-center gap-2 lg:hidden">
@@ -573,6 +488,55 @@ export default function AdminDashboardPage() {
           {tab === 'live' && (
             <>
               <StatCards overview={overview} />
+              <div className="mt-8 grid gap-6 lg:grid-cols-2">
+                <section className="card card-pad">
+                  <h2 className="flex items-center gap-2 text-base font-extrabold">
+                    <TrendingUp className="h-4 w-4 text-accent" />
+                    Top requested songs
+                  </h2>
+                  {popular.length === 0 ? (
+                    <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No song requests yet — they'll show up here once people start requesting.</p>
+                  ) : (
+                    <ol className="mt-4 space-y-2.5">
+                      {popular.map((song, index) => (
+                        <li key={`${song.song_name}-${index}`} className="flex items-center gap-3">
+                          <span className="w-5 shrink-0 text-center text-xs font-extrabold text-zinc-400">{index + 1}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold">{song.song_name}</p>
+                            {song.artist_name ? <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{song.artist_name}</p> : null}
+                          </div>
+                          <span className="pill">{song.times}×</span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </section>
+                <section className="card card-pad">
+                  <h2 className="flex items-center gap-2 text-base font-extrabold">
+                    <CalendarDays className="h-4 w-4 text-accent" />
+                    Requests — last 7 days
+                  </h2>
+                  {requestsByDay.length === 0 ? (
+                    <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No requests in the last 7 days.</p>
+                  ) : (
+                    <div className="mt-4 flex h-40 items-end justify-between gap-2">
+                      {requestsByDay.map((point) => {
+                        const max = Math.max(1, ...requestsByDay.map((p) => p.n));
+                        const height = Math.max(8, Math.round((point.n / max) * 100));
+                        return (
+                          <div key={point.day} className="flex flex-1 flex-col items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-zinc-400">{point.n}</span>
+                            <div className="w-full rounded-t-xs bg-accent/80" style={{ height: `${height}%` }} />
+                            <span className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                              {new Date(`${point.day}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              </div>
               <div className="mt-8">
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="flex items-center gap-2 text-base font-extrabold">

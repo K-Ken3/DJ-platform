@@ -27,7 +27,6 @@ export async function seedDatabase() {
 async function ensureSettings() {
   const settings = [
     ['mtn_momo_number', '0788205500'],
-    ['mtn_momo_ussd', '*182*8*1*1540166*22000#'],
     ['momo_account_name', 'Ken'],
     ['currency', 'RWF'],
     ['suggested_tips', JSON.stringify(['1000', '2000', '5000', '10000'])],

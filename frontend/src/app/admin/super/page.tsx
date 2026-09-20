@@ -9,11 +9,9 @@ import {
   BellRing,
   CalendarDays,
   CheckCircle2,
-  Clock,
-  Copy,
   CreditCard,
+  Download,
   ExternalLink,
-  KeyRound,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -27,10 +25,10 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/site/Logo';
 import { BrandingTab } from '@/components/admin/BrandingTab';
-import { api } from '@/lib/api';
-import type { PaymentCodeRow, SuperDj, SuperRenewal, SuperStats, SubscriptionRecord } from '@/lib/types';
+import { api, downloadCsv } from '@/lib/api';
+import type { NotificationItem, SuperDj, SuperRenewal, SuperStats, SubscriptionRecord } from '@/lib/types';
 
-type TabId = 'overview' | 'djs' | 'payments' | 'branding';
+type TabId = 'overview' | 'djs' | 'payments' | 'notifications' | 'branding';
 
 type SubscriptionRow = SubscriptionRecord & { user_name: string; user_email: string; user_status: string };
 
@@ -38,6 +36,7 @@ const tabs: { id: TabId; label: string; icon: typeof Users }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'djs', label: 'DJs', icon: Users },
   { id: 'payments', label: 'Payments', icon: CreditCard },
+  { id: 'notifications', label: 'Reminders', icon: BellRing },
   { id: 'branding', label: 'Branding', icon: Palette },
 ];
 
@@ -76,21 +75,20 @@ export default function SuperAdminPage() {
   const [stats, setStats] = useState<SuperStats | null>(null);
   const [djs, setDjs] = useState<SuperDj[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
-  const [codes, setCodes] = useState<PaymentCodeRow[]>([]);
   const [renewals, setRenewals] = useState<SuperRenewal[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED'>('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [statsData, djsData, subsData, codesData, renewalsData, meData] = await Promise.all([
+    const [statsData, djsData, subsData, renewalsData, notifData, meData] = await Promise.all([
       api<SuperStats>('/api/super/stats'),
       api<{ djs: SuperDj[] }>('/api/super/djs'),
       api<{ subscriptions: SubscriptionRow[] }>('/api/super/subscriptions'),
-      api<{ codes: PaymentCodeRow[] }>('/api/super/payment-codes'),
       api<{ renewals: SuperRenewal[] }>('/api/super/renewals'),
+      api<{ items: NotificationItem[] }>('/api/super/notifications'),
       api<{ user: { name: string; role: string } }>('/api/auth/me'),
     ]);
     if (meData.user.role !== 'SUPERADMIN') {
@@ -100,8 +98,8 @@ export default function SuperAdminPage() {
     setStats(statsData);
     setDjs(djsData.djs || []);
     setSubscriptions(subsData.subscriptions || []);
-    setCodes(codesData.codes || []);
     setRenewals(renewalsData.renewals || []);
+    setNotifications(notifData.items || []);
     if (meData.user.name) setOwnerName(meData.user.name);
   }, [router]);
 
@@ -133,45 +131,6 @@ export default function SuperAdminPage() {
     }
   }
 
-  async function setSubStatus(id: number, status: 'VERIFIED' | 'REJECTED') {
-    setBusyId(`sub-${id}`);
-    setError('');
-    try {
-      await api(`/api/super/subscriptions/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not update the subscription.');
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function generateCode(userId: number) {
-    setBusyId(`gen-${userId}`);
-    setError('');
-    try {
-      await api('/api/super/payment-codes', { method: 'POST', body: JSON.stringify({ user_id: userId }) });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not generate the payment code.');
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function revokeCode(id: number) {
-    setBusyId(`code-${id}`);
-    setError('');
-    try {
-      await api(`/api/super/payment-codes/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'REVOKED' }) });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not revoke the code.');
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   async function confirmRenewal(userId: number) {
     setBusyId(`renew-${userId}`);
     setError('');
@@ -183,14 +142,6 @@ export default function SuperAdminPage() {
     } finally {
       setBusyId(null);
     }
-  }
-
-  async function copyText(value: string, label: string) {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      await navigator.clipboard.writeText(value).catch(() => {});
-    }
-    setCopied(label);
-    window.setTimeout(() => setCopied(null), 1600);
   }
 
   function logout() {
@@ -207,8 +158,7 @@ export default function SuperAdminPage() {
   }
 
   const filteredDjs = filter === 'ALL' ? djs : djs.filter((dj) => dj.status === filter);
-  const pendingSubs = subscriptions.filter((sub) => sub.status === 'SUBMITTED');
-  const pendingDjs = djs.filter((dj) => dj.status === 'PENDING');
+  const expiredDjs = djs.filter((dj) => dj.status === 'ACTIVE' && dj.sub_expired);
 
   return (
     <main className="min-h-screen bg-zinc-100 lg:pl-64 dark:bg-zinc-950">
@@ -291,7 +241,7 @@ export default function SuperAdminPage() {
                 {[
                   { label: 'Total DJs', value: stats?.total_djs ?? 0, icon: Users },
                   { label: 'Active DJs', value: stats?.active ?? 0, icon: CheckCircle2 },
-                  { label: 'Pending DJs', value: stats?.pending ?? 0, icon: Clock },
+                  { label: 'Renewals due', value: stats?.renewals_due ?? 0, icon: BellRing },
                   { label: 'Suspended', value: stats?.suspended ?? 0, icon: Ban },
                 ].map((card) => {
                   const Icon = card.icon;
@@ -361,48 +311,74 @@ export default function SuperAdminPage() {
               </div>
 
               <div className="mt-8 grid gap-6 lg:grid-cols-2">
-                <div className="card card-pad">
-                  <h2 className="text-base font-extrabold">Pending DJs</h2>
-                  {pendingDjs.length === 0 ? (
-                    <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No DJs awaiting approval.</p>
-                  ) : (
-                    <ul className="mt-4 space-y-3">
-                      {pendingDjs.slice(0, 5).map((dj) => (
-                        <li key={dj.id} className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold">{dj.name}</p>
-                            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{dj.email}</p>
-                          </div>
-                          <button type="button" className="btn-primary btn-sm" disabled={busyId === `dj-${dj.id}`} onClick={() => setDjStatus(dj.id, 'ACTIVE')}>
-                            Approve
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                <div className="card card-pad">
-                  <h2 className="text-base font-extrabold">Payments awaiting verification</h2>
-                  {pendingSubs.length === 0 ? (
-                    <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No payments waiting.</p>
-                  ) : (
-                    <ul className="mt-4 space-y-3">
-                      {pendingSubs.slice(0, 5).map((sub) => (
-                        <li key={sub.id} className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold">{sub.user_name}</p>
-                            <p className="truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">{sub.transaction_reference || 'No reference'}</p>
-                          </div>
-                          <button type="button" className="btn-primary btn-sm" disabled={busyId === `sub-${sub.id}`} onClick={() => setSubStatus(sub.id, 'VERIFIED')}>
-                            Verify
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+              <div className="card card-pad">
+                <h2 className="flex items-center gap-2 text-base font-extrabold">
+                  <TrendingUp className="h-4 w-4 text-accent" />
+                  Top requested songs (platform)
+                </h2>
+                {!stats?.top_songs || stats.top_songs.length === 0 ? (
+                  <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No song requests yet.</p>
+                ) : (
+                  <ol className="mt-4 space-y-2.5">
+                    {stats.top_songs.map((song, index) => (
+                      <li key={`${song.song_name}-${index}`} className="flex items-center gap-3">
+                        <span className="w-5 shrink-0 text-center text-xs font-extrabold text-zinc-400">{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold">{song.song_name}</p>
+                          {song.artist_name ? <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{song.artist_name}</p> : null}
+                        </div>
+                        <span className="pill">{song.times}×</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
+
+              <div className="card card-pad">
+                <h2 className="flex items-center gap-2 text-base font-extrabold">
+                  <CalendarDays className="h-4 w-4 text-accent" />
+                  Requests — last 7 days
+                </h2>
+                {!stats?.requests_by_day || stats.requests_by_day.length === 0 ? (
+                  <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No requests in the last 7 days.</p>
+                ) : (
+                  <div className="mt-4 flex h-40 items-end justify-between gap-2">
+                    {stats.requests_by_day.map((point) => {
+                      const max = Math.max(1, ...stats.requests_by_day!.map((p) => p.n));
+                      const height = Math.max(8, Math.round((point.n / max) * 100));
+                      return (
+                        <div key={point.day} className="flex flex-1 flex-col items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-zinc-400">{point.n}</span>
+                          <div className="w-full rounded-t-xs bg-accent/80" style={{ height: `${height}%` }} />
+                          <span className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                            {new Date(`${point.day}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="card card-pad mt-6">
+              <h2 className="text-base font-extrabold">Owner notifications</h2>
+              {notifications.length === 0 ? (
+                <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No reminders yet. You'll be notified here when a DJ's renewal is due.</p>
+              ) : (
+                <ul className="mt-4 space-y-3">
+                  {notifications.slice(0, 8).map((item) => (
+                    <li key={item.id} className="flex items-start gap-3">
+                      <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold leading-tight">{item.title}</p>
+                        {item.body ? <p className="mt-0.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">{item.body}</p> : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             </>
           )}
 
@@ -493,12 +469,23 @@ export default function SuperAdminPage() {
 
           {tab === 'payments' && (
             <>
-              <div className="mb-6">
-                <h2 className="text-lg font-extrabold">Monthly renewals</h2>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                  Each DJ pays a $5 monthly membership. You get a reminder 29.5 days after their last confirmed payment;
-                  if nothing is confirmed within 30 days their dashboard locks until you confirm the new month.
-                </p>
+              <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-extrabold">Monthly renewals</h2>
+                  <p className="mt-1 max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
+                    Every DJ starts with a 30-day free trial, then pays a $5 monthly
+                    membership. You get a reminder 29.5 days after their last confirmed payment; if nothing is confirmed
+                    within 30 days their dashboard locks until you confirm the new month.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-outline btn-sm"
+                  onClick={() => downloadCsv('/api/super/payments/export.csv', 'djlink-payments.csv').catch((err) => setError(err instanceof Error ? err.message : 'Export failed'))}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Export payments CSV
+                </button>
               </div>
 
               {renewals.length === 0 ? (
@@ -567,105 +554,6 @@ export default function SuperAdminPage() {
                 </div>
               )}
 
-              <div className="mt-10 mb-4">
-                <h2 className="text-lg font-extrabold">Activation codes</h2>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                  Generate a confirmation code for a DJ who has paid. Share the code with them — they enter it on
-                  their pending card to activate, and a verified payment record is created below.
-                </p>
-              </div>
-
-              {pendingDjs.length === 0 ? (
-                <div className="card card-pad py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                  No pending DJs need activation codes.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {pendingDjs.map((dj) => {
-                    const djCodes = codes.filter((c) => c.user_id === dj.id);
-                    const activeCode = djCodes.find((c) => c.status === 'UNUSED') || null;
-                    const usedCode = djCodes.find((c) => c.status === 'USED') || null;
-                    return (
-                      <div key={dj.id} className="card card-pad">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-extrabold">{dj.name}</h3>
-                              <Pill value={dj.status} />
-                            </div>
-                            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{dj.email}</p>
-                            {activeCode ? (
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <code className="rounded-xs border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-mono text-sm font-bold dark:border-zinc-800 dark:bg-zinc-900">
-                                  {activeCode.code}
-                                </code>
-                                <span className="text-xs text-emerald-600 dark:text-emerald-400">Unused</span>
-                                <button
-                                  type="button"
-                                  className="btn-outline btn-sm"
-                                  onClick={() => copyText(activeCode.code, `code-${activeCode.id}`)}
-                                >
-                                  <Copy className="h-3.5 w-3.5" />
-                                  {copied === `code-${activeCode.id}` ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                            ) : usedCode ? (
-                              <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">
-                                Code {usedCode.code} was used
-                                {usedCode.used_at ? ` on ${formatDate(usedCode.used_at)}` : ''} — account activated.
-                              </p>
-                            ) : (
-                              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">No code generated yet.</p>
-                            )}
-                          </div>
-                          {!activeCode && !usedCode && (
-                            <button
-                              type="button"
-                              className="btn-primary btn-sm"
-                              disabled={busyId === `gen-${dj.id}`}
-                              onClick={() => generateCode(dj.id)}
-                            >
-                              <KeyRound className="h-3.5 w-3.5" />
-                              {busyId === `gen-${dj.id}` ? 'Generating...' : 'Generate payment code'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {codes.filter((c) => c.status !== 'UNUSED').length > 0 && (
-                <div className="mt-8">
-                  <h2 className="text-lg font-extrabold">Recently issued codes</h2>
-                  <div className="mt-3 space-y-2">
-                    {codes
-                      .filter((c) => c.status !== 'UNUSED')
-                      .slice(0, 20)
-                      .map((code) => (
-                        <div key={code.id} className="card card-pad flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <code className="font-mono text-sm font-bold">{code.code}</code>
-                              <Pill value={code.status} />
-                            </div>
-                            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                              {code.dj_name || `DJ #${code.user_id}`} · issued {formatDate(code.created_at)}
-                              {code.status === 'REVOKED' ? ' · revoked by owner' : ''}
-                            </p>
-                          </div>
-                          {code.status === 'REVOKED' && (
-                            <button type="button" className="btn-outline btn-sm" disabled={busyId === `code-${code.id}`} onClick={() => generateCode(code.user_id)}>
-                              Re-issue
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-
               <div className="mt-8 mb-4">
                 <h2 className="text-lg font-extrabold">Payment records</h2>
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
@@ -674,7 +562,9 @@ export default function SuperAdminPage() {
               </div>
 
               {subscriptions.length === 0 ? (
-                <div className="card card-pad py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">No payments yet. Once a DJ activates with a code, their payment record appears here.</div>
+                <div className="card card-pad py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                  No payments yet. Once a free trial ends and the DJ pays, their payment record appears here.
+                </div>
               ) : (
                 <div className="space-y-3">
                   {subscriptions.map((sub) => (
@@ -688,7 +578,6 @@ export default function SuperAdminPage() {
                           </div>
                           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{sub.user_email}</p>
                           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
-                            {sub.payment_code && <span>Code: <span className="font-mono">{sub.payment_code}</span></span>}
                             <span>Ref: <span className="font-mono">{sub.transaction_reference || '—'}</span></span>
                             <span>Phone: {sub.phone || '—'}</span>
                             <span>
@@ -697,18 +586,6 @@ export default function SuperAdminPage() {
                             <span>Paid {formatDate(sub.verified_at || sub.submitted_at)}</span>
                           </div>
                         </div>
-
-                        {sub.status === 'SUBMITTED' && (
-                          <div className="flex flex-wrap gap-2">
-                            <button type="button" className="btn-primary btn-sm" disabled={busyId === `sub-${sub.id}`} onClick={() => setSubStatus(sub.id, 'VERIFIED')}>
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Mark verified
-                            </button>
-                            <button type="button" className="btn-danger btn-sm" disabled={busyId === `sub-${sub.id}`} onClick={() => setSubStatus(sub.id, 'REJECTED')}>
-                              Reject
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -716,12 +593,52 @@ export default function SuperAdminPage() {
               )}
             </>
           )}
-        {tab === 'branding' && <BrandingTab />}
+        {tab === 'notifications' && (
+            <>
+              <div className="mb-6">
+                <h2 className="text-lg font-extrabold">Membership reminders</h2>
+                <p className="mt-1 max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
+                  DJLink reminds you 29.5 days after a DJ's last confirmed payment. Confirm their next month in the
+                  Payments tab to keep their dashboard unlocked.
+                </p>
+              </div>
+
+              {notifications.length === 0 ? (
+                <div className="card card-pad py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                  No reminders yet. They'll appear here when a DJ's renewal is due or expires.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.map((item) => (
+                    <div key={item.id} className="card card-pad">
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 shrink-0">
+                          {item.kind === 'error' ? (
+                            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                          ) : item.kind === 'warning' ? (
+                            <BellRing className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          )}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold leading-tight">{item.title}</p>
+                          {item.body ? <p className="mt-0.5 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{item.body}</p> : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === 'branding' && <BrandingTab />}
         </div>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white lg:hidden dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {tabs.map((item) => {
             const Icon = item.icon;
             return (

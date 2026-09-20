@@ -7,7 +7,6 @@ import type { AdminSettings } from '@/lib/types';
 export function SettingsTab() {
   const [form, setForm] = useState({
     mtn_momo_number: '',
-    mtn_momo_ussd: '',
     momo_account_name: '',
     currency: '',
     suggested_tips: '',
@@ -23,7 +22,6 @@ export function SettingsTab() {
         const settings = data.settings;
         setForm({
           mtn_momo_number: settings.mtn_momo_number || '',
-          mtn_momo_ussd: settings.mtn_momo_ussd || '',
           momo_account_name: settings.momo_account_name || '',
           currency: settings.currency || 'RWF',
           suggested_tips: (settings.suggested_tips || []).join(', '),
@@ -43,7 +41,6 @@ export function SettingsTab() {
         method: 'PATCH',
         body: JSON.stringify({
           mtn_momo_number: form.mtn_momo_number,
-          mtn_momo_ussd: form.mtn_momo_ussd,
           momo_account_name: form.momo_account_name,
           currency: form.currency,
           suggested_tips: form.suggested_tips.split(',').map((value) => value.trim()).filter(Boolean),
@@ -63,21 +60,15 @@ export function SettingsTab() {
     <form onSubmit={save} className="grid gap-4">
       <div>
         <p className="mb-4 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-          These MTN Mobile Money details belong to the <strong>DJ account activation payment</strong> — they are shown
-          to new DJs on their pending card so they can pay the membership fee. The USSD code here is
-          <strong> not used for guest tipping</strong>; each DJ sets their own receiving number on their Profile so
-          tips go straight to them with the guest's chosen amount.
+          These MTN Mobile Money details show on each DJ's payment card so they know where to send their monthly
+          membership. Each DJ sets their own receiving number on their Profile so guest tips go straight to them.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="st-number">MTN Mobile Money number</label>
           <input id="st-number" type="text" value={form.mtn_momo_number} onChange={(event) => setForm((current) => ({ ...current, mtn_momo_number: event.target.value }))} placeholder="0789630452" />
-        </div>
-        <div>
-          <label htmlFor="st-ussd">USSD code</label>
-          <input id="st-ussd" type="text" value={form.mtn_momo_ussd} onChange={(event) => setForm((current) => ({ ...current, mtn_momo_ussd: event.target.value }))} placeholder="*182*8*1*1540166*22000#" className="font-mono" />
         </div>
         <div>
           <label htmlFor="st-account-name">Account name</label>
