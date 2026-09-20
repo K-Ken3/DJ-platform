@@ -12,8 +12,10 @@ import {
   MessageSquare,
   Music4,
   Radio,
+  RefreshCw,
   ScrollText,
   Settings2,
+  ShieldAlert,
   UserCog,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,7 +32,7 @@ import { ProfileTab } from '@/components/admin/ProfileTab';
 import { SettingsTab } from '@/components/admin/SettingsTab';
 import { BACKEND_URL, api } from '@/lib/api';
 import { playNotificationSound } from '@/lib/sound';
-import type { EventItem, Overview, RegistrationInfo, RequestItem, SubscriptionRecord } from '@/lib/types';
+import type { EventItem, Overview, RegistrationInfo, RequestItem, SubscriptionRecord, SubscriptionState } from '@/lib/types';
 
 type TabId = 'live' | 'history' | 'events' | 'blog' | 'profile' | 'settings' | 'messages';
 
@@ -76,7 +78,7 @@ export default function AdminDashboardPage() {
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [gate, setGate] = useState<null | { status: string; name: string }>(null);
+  const [gate, setGate] = useState<null | { status: string; name: string; subState?: SubscriptionState | null }>(null);
   const [registrationInfo, setRegistrationInfo] = useState<RegistrationInfo | null>(null);
   const [paymentCode, setPaymentCode] = useState('');
   const [gateError, setGateError] = useState('');
@@ -109,7 +111,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!token) return;
-    api<{ user: { role: string; status: string; name: string }; subscription: SubscriptionRecord | null }>('/api/auth/me')
+    api<{ user: { role: string; status: string; name: string }; subscription: SubscriptionRecord | null; subscription_state?: SubscriptionState | null }>('/api/auth/me')
       .then(async (me) => {
         if (me.user.role === 'SUPERADMIN') {
           router.replace('/admin/super');
@@ -124,11 +126,42 @@ export default function AdminDashboardPage() {
           setLoading(false);
           return;
         }
+        if (me.subscription_state?.expired) {
+          setGate({ status: 'EXPIRED', name: me.user.name, subState: me.subscription_state });
+          setDjName(me.user.name);
+          setLoading(false);
+          return;
+        }
         await loadDashboard();
         setLoading(false);
       })
       .catch(() => router.push('/admin/login'));
   }, [token, loadDashboard, router]);
+
+  function refreshStatus() {
+    setLoading(true);
+    api<{ user: { role: string; status: string; name: string }; subscription: SubscriptionRecord | null; subscription_state?: SubscriptionState | null }>('/api/auth/me')
+      .then(async (me) => {
+        if (me.user.status !== 'ACTIVE') {
+          setGate({ status: me.user.status, name: me.user.name });
+          setDjName(me.user.name);
+          setLoading(false);
+          return;
+        }
+        if (me.subscription_state?.expired) {
+          setGate({ status: 'EXPIRED', name: me.user.name, subState: me.subscription_state });
+          setDjName(me.user.name);
+          setLoading(false);
+          return;
+        }
+        setGate(null);
+        await loadDashboard();
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -261,7 +294,65 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="card card-pad">
-            {blocked ? (
+            {gate.status === 'EXPIRED' ? (
+              <div className="text-center">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <ShieldAlert className="h-8 w-8" />
+                </span>
+                <h1 className="mt-5 text-2xl font-extrabold tracking-tight">Membership lapsed</h1>
+                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                  Your monthly DJLink membership has expired. Pay the renewal fee to keep your dashboard and live request
+                  page active.
+                </p>
+
+                <div className="mt-6 space-y-3 text-left">
+                  <div className="surface-2 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Renewal fee</p>
+                    <p className="mt-1 text-lg font-extrabold">
+                      ${registrationInfo?.subscription_fee_usd ?? 5} <span className="text-sm font-bold text-zinc-400">USD</span>
+                    </p>
+                    <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                      ≈ {(registrationInfo?.subscription_fee ?? 7500).toLocaleString()} {registrationInfo?.currency || 'RWF'} · MTN Mobile Money
+                    </p>
+                  </div>
+                  <div className="surface-2 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Account name</p>
+                    <p className="mt-1 text-base font-bold">{registrationInfo?.momo_account_name || 'Ken'}</p>
+                  </div>
+                  <div className="surface-2 flex items-center justify-between p-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">USSD code</p>
+                      <p className="mt-1 font-mono text-base font-bold">{registrationInfo?.mtn_momo_ussd || '*182*8*1*1540166*7500#'}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-outline btn-sm"
+                      onClick={() => navigator.clipboard?.writeText(registrationInfo?.mtn_momo_ussd || '')}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                  {gate.subState?.cutoffAt ? (
+                    <p className="flex items-start gap-2 rounded-xs border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                      <Inbox className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      Locked since {new Date(gate.subState.cutoffAt).toLocaleDateString()}. After DJLink confirms your
+                      monthly payment this screen goes away.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="mt-6 flex flex-col gap-2">
+                  <button type="button" className="btn-primary" onClick={refreshStatus}>
+                    <RefreshCw className="h-4 w-4" />
+                    I have paid — check now
+                  </button>
+                  <a href="/#contact" className="btn-ghost">
+                    Contact support
+                  </a>
+                </div>
+              </div>
+            ) : blocked ? (
               <div className="text-center">
                 <span className="mx-auto flex h-14 w-14 items-center justify-center bg-red-500/10 text-red-600 dark:text-red-400">
                   <Ban className="h-8 w-8" />
@@ -285,18 +376,18 @@ export default function AdminDashboardPage() {
                 </span>
                 <h1 className="mt-4 text-2xl font-extrabold tracking-tight">Activate your account</h1>
                 <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-                  Pay the one-time membership with MTN Mobile Money, then enter the payment confirmation code you
-                  received from DJLink to continue to your dashboard.
+                  Pay the monthly membership with MTN Mobile Money, then enter the payment confirmation code you received
+                  from DJLink to continue to your dashboard.
                 </p>
 
                 <div className="mt-6 space-y-3">
                   <div className="surface-2 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Membership fee</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Monthly membership</p>
                     <p className="mt-1 text-lg font-extrabold">
-                      ${registrationInfo?.subscription_fee_usd ?? 15} <span className="text-sm font-bold text-zinc-400">USD</span>
+                      ${registrationInfo?.subscription_fee_usd ?? 5} <span className="text-sm font-bold text-zinc-400">USD / month</span>
                     </p>
                     <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                      ≈ {(registrationInfo?.subscription_fee ?? 22000).toLocaleString()} {registrationInfo?.currency || 'RWF'} to pay
+                      ≈ {(registrationInfo?.subscription_fee ?? 7500).toLocaleString()} {registrationInfo?.currency || 'RWF'} to pay
                     </p>
                   </div>
                   <div className="surface-2 p-4">
@@ -306,7 +397,7 @@ export default function AdminDashboardPage() {
                   <div className="surface-2 flex items-center justify-between p-4">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">USSD code</p>
-                      <p className="mt-1 font-mono text-base font-bold">{registrationInfo?.mtn_momo_ussd || '*182*8*1*1540166*22000#'}</p>
+                      <p className="mt-1 font-mono text-base font-bold">{registrationInfo?.mtn_momo_ussd || '*182*8*1*1540166*7500#'}</p>
                     </div>
                     <button
                       type="button"

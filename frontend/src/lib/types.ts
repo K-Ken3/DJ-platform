@@ -118,9 +118,21 @@ export type SubscriptionRecord = {
   transaction_reference?: string | null;
   payment_code?: string | null;
   status: 'SUBMITTED' | 'VERIFIED' | 'REJECTED';
+  period_start?: string | null;
+  period_end?: string | null;
   submitted_at: string;
   verified_at?: string | null;
   verified_by?: number | null;
+};
+
+export type SubscriptionState = {
+  paid: boolean;
+  expired: boolean;
+  renewalDue: boolean;
+  daysSincePayment: number | null;
+  paidAt?: string | null;
+  reminderAt?: string | null;
+  cutoffAt?: string | null;
 };
 
 export type PaymentCodeRow = {
@@ -153,6 +165,21 @@ export type SuperDj = {
   total_subscriptions: number;
   verified_subscriptions: number;
   latest_subscription?: SubscriptionRecord | null;
+  sub_state?: SubscriptionState | null;
+  sub_expired?: boolean;
+  sub_renewal_due?: boolean;
+};
+
+export type SuperRenewal = {
+  user_id: number;
+  name: string;
+  email: string;
+  slug?: string | null;
+  phone?: string | null;
+  latest_subscription?: SubscriptionRecord | null;
+  state: SubscriptionState;
+  needs_action: boolean;
+  includes_expired: boolean;
 };
 
 export type SuperStats = {
@@ -168,6 +195,10 @@ export type SuperStats = {
   subscriptions_total: number;
   subscriptions_verified: number;
   subscriptions_submitted: number;
+  revenue_total: number;
+  revenue_usd_estimate: number;
+  renewals_due: number;
+  renewals_expired: number;
 };
 
 export type RegistrationInfo = {

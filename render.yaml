@@ -38,9 +38,9 @@ services:
       - key: MOMO_ACCOUNT_NAME
         value: Ken
       - key: SUBSCRIPTION_FEE
-        value: '22000'
+        value: '7500'
       - key: SUBSCRIPTION_FEE_USD
-        value: '15'
+        value: '5'
       - key: USD_RWF_RATE
         value: '1469'
 

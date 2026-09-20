@@ -114,12 +114,21 @@ function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   return get('SELECT id, name, email, role, status FROM users WHERE id = ?', [req.user.id])
-    .then((user) => {
+    .then(async (user) => {
       if (!user) return res.status(401).json({ error: 'Unauthorized' });
       req.dbUser = user;
       if (!['ADMIN', 'DJ'].includes(user.role) || user.status !== 'ACTIVE') {
         return res.status(403).json({ error: 'Your account needs approval before you can do this.' });
       }
+      const subscription = await getLatestVerifiedSubscription(user.id);
+      const state = subscriptionState(subscription);
+      if (state.expired) {
+        return res.status(403).json({
+          error: 'Your monthly membership has lapsed. Pay the renewal fee to continue using your dashboard.',
+          code: 'SUBSCRIPTION_EXPIRED',
+        });
+      }
+      req.subscriptionState = state;
       next();
     })
     .catch(next);
@@ -149,6 +158,48 @@ async function getSettings() {
   const settings = {};
   for (const row of rows) settings[row.key] = row.value;
   return settings;
+}
+
+function subscriptionState(subscription) {
+  if (!subscription) {
+    return {
+      paid: false,
+      expired: true,
+      renewalDue: true,
+      daysSincePayment: null,
+      paidAt: null,
+      reminderAt: null,
+      cutoffAt: null,
+    };
+  }
+  const startMs = new Date(
+    subscription.period_start || subscription.verified_at || subscription.submitted_at || Date.now()
+  ).getTime();
+  const now = Date.now();
+  const reminderAt = startMs + config.renewalIntervalMs;   // 29.5 days
+  const cutoffAt = startMs + config.subscriptionCutoffMs;  // 30 days
+  const expired = now >= cutoffAt;
+  const renewalDue = !expired && now >= reminderAt;
+  return {
+    paid: true,
+    expired,
+    renewalDue,
+    daysSincePayment: Math.floor((now - startMs) / (24 * 60 * 60 * 1000)),
+    paidAt: new Date(startMs).toISOString(),
+    reminderAt: new Date(reminderAt).toISOString(),
+    cutoffAt: new Date(cutoffAt).toISOString(),
+  };
+}
+
+async function getLatestVerifiedSubscription(userId) {
+  return await get(
+    `SELECT * FROM subscriptions WHERE user_id = ? AND status = 'VERIFIED' ORDER BY id DESC LIMIT 1`,
+    [userId]
+  );
+}
+
+async function getSubscriptionPeriodEndIso() {
+  return new Date(Date.now() + config.subscriptionCutoffMs).toISOString();
 }
 
 async function setSetting(key, value) {
@@ -208,9 +259,11 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
   const subscription = user
     ? await get('SELECT * FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 1', [user.id])
     : null;
+  const subscription_state = subscriptionState(subscription);
   res.json({
     user,
     subscription,
+    subscription_state,
     dj: dj ? { id: dj.id, name: dj.name, slug: dj.slug, logo: dj.logo, tagline: dj.tagline, location: dj.location, social_links: dj.social_links, momo_number: dj.momo_number, momo_ussd: dj.momo_ussd, momo_account_name: dj.momo_account_name } : null,
   });
 });
@@ -337,14 +390,15 @@ app.post('/api/dj/activate', authMiddleware, asyncHandler(async (req, res) => {
   const settings = await getSettings();
   const fee = row.amount || Number(settings.subscription_fee) || config.subscriptionFee;
   const now = new Date().toISOString();
+  const periodEnd = await getSubscriptionPeriodEndIso();
 
   await run('UPDATE payment_codes SET status = ?, used_at = ?, used_by = ? WHERE id = ?', ['USED', now, me.id, row.id]);
   await run('UPDATE users SET status = ?, updated_at = ? WHERE id = ?', ['ACTIVE', now, me.id]);
 
   const sub = await run(
-    `INSERT INTO subscriptions (user_id, amount, currency, phone, transaction_reference, payment_code, status, submitted_at, verified_at, verified_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [me.id, fee, 'RWF', me.phone || null, cleanCode, cleanCode, 'VERIFIED', now, now, row.created_by]
+    `INSERT INTO subscriptions (user_id, amount, currency, phone, transaction_reference, payment_code, status, period_start, period_end, submitted_at, verified_at, verified_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [me.id, fee, 'RWF', me.phone || null, cleanCode, cleanCode, 'VERIFIED', now, periodEnd, now, now, row.created_by]
   );
   const subscription = await get('SELECT * FROM subscriptions WHERE id = ?', [sub.id]);
 
@@ -358,6 +412,7 @@ app.post('/api/dj/activate', authMiddleware, asyncHandler(async (req, res) => {
     token,
     user: { id: freshUser.id, name: freshUser.name, email: freshUser.email, role: freshUser.role, status: freshUser.status },
     subscription,
+    subscription_state: subscriptionState(subscription),
     dj: dj ? { id: dj.id, name: dj.name, slug: dj.slug, logo: dj.logo, tagline: dj.tagline } : null,
   });
 }));
@@ -805,6 +860,23 @@ app.get('/api/super/stats', authMiddleware, requireSuperAdmin, asyncHandler(asyn
      FROM subscriptions`
   );
   const bookingCount = await get('SELECT COUNT(*) AS n FROM booking_messages');
+  const revenueRow = await get(
+    "SELECT COUNT(*) AS paid_months, COALESCE(SUM(amount), 0) AS revenue_total FROM subscriptions WHERE status = 'VERIFIED'"
+  );
+
+  const activeDjs = await all(
+    `SELECT u.id FROM users u WHERE u.role IN ('ADMIN', 'DJ') AND u.status = 'ACTIVE'`
+  );
+  let renewalsDue = 0;
+  let renewalsExpired = 0;
+  for (const dj of activeDjs) {
+    const latest = await getLatestVerifiedSubscription(dj.id);
+    const state = subscriptionState(latest);
+    if (state.expired) renewalsExpired += 1;
+    else if (state.renewalDue) renewalsDue += 1;
+  }
+
+  const settings = await getSettings();
   res.json({
     ...counts,
     events_total: eventCount ? eventCount.n : 0,
@@ -812,6 +884,10 @@ app.get('/api/super/stats', authMiddleware, requireSuperAdmin, asyncHandler(asyn
     requests_today: requestStats ? requestStats.requests_today : 0,
     bookings_total: bookingCount ? bookingCount.n : 0,
     ...subStats,
+    revenue_total: revenueRow ? revenueRow.revenue_total : 0,
+    revenue_usd_estimate: (revenueRow ? revenueRow.paid_months : 0) * (Number(settings.subscription_fee_usd) || config.subscriptionFeeUsd),
+    renewals_due: renewalsDue,
+    renewals_expired: renewalsExpired,
   });
 }));
 
@@ -836,8 +912,15 @@ app.get('/api/super/djs', authMiddleware, requireSuperAdmin, asyncHandler(async 
 
   const djs = [];
   for (const row of rows) {
+    const latestVerified = await getLatestVerifiedSubscription(row.id);
     const latest = await get('SELECT * FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 1', [row.id]);
-    djs.push({ ...row, latest_subscription: latest || null });
+    djs.push({
+      ...row,
+      latest_subscription: latest || null,
+      sub_state: subscriptionState(latestVerified),
+      sub_expired: latestVerified ? subscriptionState(latestVerified).expired : false,
+      sub_renewal_due: latestVerified ? subscriptionState(latestVerified).renewalDue : false,
+    });
   }
   res.json({ djs });
 }));
@@ -857,6 +940,80 @@ app.patch('/api/super/djs/:id/status', authMiddleware, requireSuperAdmin, asyncH
   res.json({ user: updated });
 }));
 
+// Monthly renewals: every 29.5 days after the latest confirmed payment the owner is
+// reminded to collect the next $5; if nothing is confirmed by the 30-day cutoff the
+// DJ's dashboard is locked until the owner confirms the new month.
+app.get('/api/super/renewals', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const rows = await all(
+    `SELECT u.id, u.name, u.email, u.role, u.status, u.phone, d.slug
+     FROM users u LEFT JOIN djs d ON d.user_id = u.id
+     WHERE u.role IN ('ADMIN', 'DJ') AND u.status = 'ACTIVE'
+     ORDER BY u.name COLLATE NOCASE ASC`
+  );
+
+  const renewals = [];
+  for (const row of rows) {
+    const latest = await getLatestVerifiedSubscription(row.id);
+    const state = subscriptionState(latest);
+    renewals.push({
+      user_id: row.id,
+      name: row.name,
+      email: row.email,
+      slug: row.slug,
+      phone: row.phone || null,
+      latest_subscription: latest || null,
+      state,
+      needs_action: state.expired || state.renewalDue,
+      includes_expired: !latest || state.paid === false,
+    });
+  }
+
+  const due = renewals.filter((item) => item.needs_action && !item.state.expired);
+  const expired = renewals.filter((item) => item.state.expired);
+  const upcoming = renewals.filter((item) => !item.state.expired && !item.state.renewalDue);
+
+  res.json({
+    renewals,
+    counts: {
+      due: due.length,
+      expired: expired.length,
+      upcoming: upcoming.length,
+    },
+  });
+}));
+
+app.post('/api/super/subscriptions/confirm', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
+  const { user_id } = req.body || {};
+  const userId = Number(user_id);
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return res.status(400).json({ error: 'Please provide the DJ account.' });
+  }
+
+  const user = await get('SELECT id, name, email, phone, role, status FROM users WHERE id = ?', [userId]);
+  if (!user || !['DJ', 'ADMIN'].includes(user.role)) {
+    return res.status(404).json({ error: 'DJ account not found.' });
+  }
+  if (user.status !== 'ACTIVE') {
+    return res.status(400).json({ error: 'Only active DJ accounts can be renewed.' });
+  }
+
+  const settings = await getSettings();
+  const fee = Number(settings.subscription_fee) || config.subscriptionFee;
+  const currency = settings.currency || 'RWF';
+  const now = new Date().toISOString();
+  const periodEnd = await getSubscriptionPeriodEndIso();
+
+  const created = await run(
+    `INSERT INTO subscriptions (user_id, amount, currency, phone, transaction_reference, status, period_start, period_end, submitted_at, verified_at, verified_by)
+     VALUES (?, ?, ?, ?, ?, 'VERIFIED', ?, ?, ?, ?, ?)`,
+    [userId, fee, currency, user.phone || null, `RENEW-${Date.now()}`, now, periodEnd, now, now, req.dbUser.id]
+  );
+  const subscription = await get('SELECT * FROM subscriptions WHERE id = ?', [created.id]);
+
+  io.emit('user:status', { id: userId, status: 'ACTIVE' });
+  res.status(201).json({ subscription, subscription_state: subscriptionState(subscription) });
+}));
+
 app.get('/api/super/subscriptions', authMiddleware, requireSuperAdmin, asyncHandler(async (req, res) => {
   const rows = await all(
     `SELECT s.*, u.name AS user_name, u.email AS user_email, u.status AS user_status
@@ -874,9 +1031,15 @@ app.patch('/api/super/subscriptions/:id', authMiddleware, requireSuperAdmin, asy
   const sub = await get('SELECT * FROM subscriptions WHERE id = ?', [req.params.id]);
   if (!sub) return res.status(404).json({ error: 'Subscription not found' });
 
+  const verifyTime = status === 'VERIFIED' ? new Date().toISOString() : null;
+  const periodEnd = status === 'VERIFIED' ? await getSubscriptionPeriodEndIso() : null;
+
   await run(
-    `UPDATE subscriptions SET status = ?, verified_at = CASE WHEN ? = 'VERIFIED' THEN ? ELSE NULL END, verified_by = ? WHERE id = ?`,
-    [status, status, status === 'VERIFIED' ? new Date().toISOString() : null, req.dbUser.id, sub.id]
+    `UPDATE subscriptions SET status = ?, verified_at = CASE WHEN ? = 'VERIFIED' THEN ? ELSE NULL END,
+       period_start = CASE WHEN ? = 'VERIFIED' AND period_start IS NULL THEN ? ELSE period_start END,
+       period_end = CASE WHEN ? = 'VERIFIED' AND period_end IS NULL THEN ? ELSE period_end END,
+       verified_by = ? WHERE id = ?`,
+    [status, status, status === 'VERIFIED' ? new Date().toISOString() : null, status, verifyTime, status, periodEnd, req.dbUser.id, sub.id]
   );
 
   if (status === 'VERIFIED') {

@@ -12,12 +12,12 @@ import type { RegistrationInfo } from '@/lib/types';
 type RegisterResponse = { token: string; user: { id: number; name: string; status: string }; dj: { slug: string } | null };
 
 const fallbackInfo: RegistrationInfo = {
-  subscription_fee: 22000,
-  subscription_fee_usd: 15,
+  subscription_fee: 7500,
+  subscription_fee_usd: 5,
   usd_rwf_rate: 1469,
   currency: 'RWF',
   mtn_momo_number: '0788205500',
-  mtn_momo_ussd: '*182*8*1*1540166*22000#',
+  mtn_momo_ussd: '*182*8*1*1540166*7500#',
   momo_account_name: 'Ken',
 };
 
@@ -116,7 +116,7 @@ export default function AdminRegisterPage() {
             <span className="pill pill-new w-fit">For DJs</span>
             <h1 className="mt-4 text-2xl font-extrabold tracking-tight">Join DJLink</h1>
             <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-              Create your DJ account, then activate it with a one-time membership payment.
+              Create your DJ account, then activate it with the monthly membership payment.
             </p>
 
             <form onSubmit={handleRegister} className="mt-7 grid gap-4">
@@ -202,16 +202,16 @@ export default function AdminRegisterPage() {
             </span>
             <h1 className="mt-4 text-2xl font-extrabold tracking-tight">Activate your account</h1>
             <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-              Pay the one-time membership with MTN Mobile Money, then enter the payment confirmation code you
-              received from DJLink to unlock your dashboard.
+              Pay the monthly membership with MTN Mobile Money, then enter the payment confirmation code you received
+              from DJLink to unlock your dashboard.
             </p>
 
             <div className="mt-6 space-y-3">
               <div className="surface-2 flex items-center justify-between p-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Membership fee</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Monthly membership</p>
                   <p className="mt-1 text-lg font-extrabold">
-                    ${info.subscription_fee_usd || 15} <span className="text-sm font-bold text-zinc-400">USD</span>
+                    ${info.subscription_fee_usd || 5} <span className="text-sm font-bold text-zinc-400">USD / month</span>
                   </p>
                   <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                     ≈ {info.subscription_fee.toLocaleString()} {info.currency} to pay

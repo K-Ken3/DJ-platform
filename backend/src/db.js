@@ -154,6 +154,8 @@ export function initDb() {
       transaction_reference TEXT,
       payment_code TEXT,
       status TEXT NOT NULL DEFAULT 'SUBMITTED',
+      period_start TEXT,
+      period_end TEXT,
       submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       verified_at TEXT,
       verified_by INTEGER,
@@ -206,6 +208,12 @@ export function initDb() {
         const subCols = await all('PRAGMA table_info(subscriptions)');
         if (!subCols.some((c) => c.name === 'payment_code')) {
           await run('ALTER TABLE subscriptions ADD COLUMN payment_code TEXT');
+        }
+        if (!subCols.some((c) => c.name === 'period_start')) {
+          await run('ALTER TABLE subscriptions ADD COLUMN period_start TEXT');
+        }
+        if (!subCols.some((c) => c.name === 'period_end')) {
+          await run('ALTER TABLE subscriptions ADD COLUMN period_end TEXT');
         }
         resolve();
       } catch (migrationError) {

@@ -37,7 +37,13 @@ export const config = {
   mtnMomoNumber: process.env.MTN_MOMO_NUMBER || '0788205500',
   mtnMomoUssd: process.env.MTN_MOMO_USSD || '*182*8*1*1540166*22000#',
   momoAccountName: process.env.MOMO_ACCOUNT_NAME || 'Ken',
-  subscriptionFee: Number(process.env.SUBSCRIPTION_FEE || 22000),
-  subscriptionFeeUsd: Number(process.env.SUBSCRIPTION_FEE_USD || 15),
+  // Monthly membership: $5/month, collected manually via MTN Mobile Money.
+  subscriptionFee: Number(process.env.SUBSCRIPTION_FEE || 7500),
+  subscriptionFeeUsd: Number(process.env.SUBSCRIPTION_FEE_USD || 5),
   usdRwfRate: Number(process.env.USD_RWF_RATE || 1469),
+  // Renewal reminder is shown to the owner 29.5 days after the last confirmed
+  // payment; if no new payment is confirmed by the 30-day cutoff, the DJ's
+  // dashboard is locked until the owner confirms the next month.
+  renewalIntervalMs: 29.5 * 24 * 60 * 60 * 1000,
+  subscriptionCutoffMs: 30 * 24 * 60 * 60 * 1000,
 };

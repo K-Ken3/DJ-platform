@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  AlertTriangle,
+  BadgeDollarSign,
   Ban,
+  BellRing,
   CalendarDays,
   CheckCircle2,
   Clock,
@@ -20,11 +23,12 @@ import {
   Shield,
   TrendingUp,
   Users,
+  Wallet,
 } from 'lucide-react';
 import { Logo } from '@/components/site/Logo';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { api } from '@/lib/api';
-import type { PaymentCodeRow, SuperDj, SuperStats, SubscriptionRecord } from '@/lib/types';
+import type { PaymentCodeRow, SuperDj, SuperRenewal, SuperStats, SubscriptionRecord } from '@/lib/types';
 
 type TabId = 'overview' | 'djs' | 'payments' | 'branding';
 
@@ -73,6 +77,7 @@ export default function SuperAdminPage() {
   const [djs, setDjs] = useState<SuperDj[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [codes, setCodes] = useState<PaymentCodeRow[]>([]);
+  const [renewals, setRenewals] = useState<SuperRenewal[]>([]);
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED'>('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -80,11 +85,12 @@ export default function SuperAdminPage() {
   const [copied, setCopied] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [statsData, djsData, subsData, codesData, meData] = await Promise.all([
+    const [statsData, djsData, subsData, codesData, renewalsData, meData] = await Promise.all([
       api<SuperStats>('/api/super/stats'),
       api<{ djs: SuperDj[] }>('/api/super/djs'),
       api<{ subscriptions: SubscriptionRow[] }>('/api/super/subscriptions'),
       api<{ codes: PaymentCodeRow[] }>('/api/super/payment-codes'),
+      api<{ renewals: SuperRenewal[] }>('/api/super/renewals'),
       api<{ user: { name: string; role: string } }>('/api/auth/me'),
     ]);
     if (meData.user.role !== 'SUPERADMIN') {
@@ -95,6 +101,7 @@ export default function SuperAdminPage() {
     setDjs(djsData.djs || []);
     setSubscriptions(subsData.subscriptions || []);
     setCodes(codesData.codes || []);
+    setRenewals(renewalsData.renewals || []);
     if (meData.user.name) setOwnerName(meData.user.name);
   }, [router]);
 
@@ -160,6 +167,19 @@ export default function SuperAdminPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not revoke the code.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmRenewal(userId: number) {
+    setBusyId(`renew-${userId}`);
+    setError('');
+    try {
+      await api('/api/super/subscriptions/confirm', { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not confirm the renewal.');
     } finally {
       setBusyId(null);
     }
@@ -320,6 +340,26 @@ export default function SuperAdminPage() {
                 ))}
               </div>
 
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  { label: 'Renewals due', value: stats?.renewals_due ?? 0, icon: BellRing, tone: 'text-amber-600 dark:text-amber-400' },
+                  { label: 'Expired accounts', value: stats?.renewals_expired ?? 0, icon: AlertTriangle, tone: 'text-red-600 dark:text-red-400' },
+                  { label: 'Revenue (RWF)', value: stats?.revenue_total ? stats.revenue_total.toLocaleString() : 0, icon: BadgeDollarSign, tone: 'text-emerald-600 dark:text-emerald-400' },
+                  { label: 'Revenue est. (USD)', value: `$${stats?.revenue_usd_estimate ?? 0}`, icon: Wallet, tone: 'text-emerald-600 dark:text-emerald-400' },
+                ].map((card) => {
+                  const Icon = card.icon;
+                  return (
+                    <div key={card.label} className="card card-pad">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{card.label}</p>
+                        <Icon className={`h-4 w-4 ${card.tone || 'text-zinc-400'}`} />
+                      </div>
+                      <p className="mt-3 text-3xl font-extrabold tracking-tight">{card.value}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="mt-8 grid gap-6 lg:grid-cols-2">
                 <div className="card card-pad">
                   <h2 className="text-base font-extrabold">Pending DJs</h2>
@@ -395,6 +435,18 @@ export default function SuperAdminPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-lg font-extrabold">{dj.name}</h3>
                             <Pill value={dj.status} />
+                            {dj.status === 'ACTIVE' && dj.sub_expired && (
+                              <span className="inline-flex items-center gap-1.5 rounded-xs border border-red-700/40 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-red-700 dark:border-red-500/30 dark:text-red-400">
+                                <AlertTriangle className="h-3 w-3" />
+                                Membership lapsed
+                              </span>
+                            )}
+                            {dj.status === 'ACTIVE' && !dj.sub_expired && dj.sub_renewal_due && (
+                              <span className="inline-flex items-center gap-1.5 rounded-xs border border-amber-700/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:border-amber-500/30 dark:text-amber-400">
+                                <BellRing className="h-3 w-3" />
+                                Renewal due
+                              </span>
+                            )}
                           </div>
                           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{dj.email}</p>
                           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
@@ -441,7 +493,81 @@ export default function SuperAdminPage() {
 
           {tab === 'payments' && (
             <>
-              <div className="mb-4">
+              <div className="mb-6">
+                <h2 className="text-lg font-extrabold">Monthly renewals</h2>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Each DJ pays a $5 monthly membership. You get a reminder 29.5 days after their last confirmed payment;
+                  if nothing is confirmed within 30 days their dashboard locks until you confirm the new month.
+                </p>
+              </div>
+
+              {renewals.length === 0 ? (
+                <div className="card card-pad py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                  No active memberships yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {renewals.map((renewal) => {
+                    const expired = renewal.state.expired;
+                    const due = renewal.state.renewalDue && !expired;
+                    return (
+                      <div key={renewal.user_id} className={`card card-pad ${renewal.needs_action ? 'border-amber-600/50 dark:border-amber-500/40' : ''}`}>
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-lg font-extrabold">{renewal.name}</h3>
+                              {expired ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-xs border border-red-700/40 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-red-700 dark:border-red-500/30 dark:text-red-400">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Lapsed
+                                </span>
+                              ) : due ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-xs border border-amber-700/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:border-amber-500/30 dark:text-amber-400">
+                                  <BellRing className="h-3 w-3" />
+                                  Renewal due
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 rounded-xs border border-emerald-700/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:border-emerald-500/30 dark:text-emerald-400">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                              {renewal.email} · {renewal.phone || 'no phone'}
+                            </p>
+                            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
+                              {renewal.latest_subscription?.verified_at && (
+                                <span>Last paid {formatDate(renewal.latest_subscription.verified_at)}</span>
+                              )}
+                              {renewal.state.daysSincePayment !== null && (
+                                <span>{renewal.state.daysSincePayment} day(s) since payment</span>
+                              )}
+                              {renewal.state.cutoffAt && (
+                                <span>
+                                  Reminder {formatDate(renewal.state.reminderAt)} · Lock{' '}
+                                  {expired ? <span className="text-red-500 dark:text-red-400">{formatDate(renewal.state.cutoffAt)}</span> : formatDate(renewal.state.cutoffAt)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-primary btn-sm whitespace-nowrap"
+                            disabled={busyId === `renew-${renewal.user_id}`}
+                            onClick={() => confirmRenewal(renewal.user_id)}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            {busyId === `renew-${renewal.user_id}` ? 'Confirming...' : 'Confirm month paid'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-10 mb-4">
                 <h2 className="text-lg font-extrabold">Activation codes</h2>
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                   Generate a confirmation code for a DJ who has paid. Share the code with them — they enter it on

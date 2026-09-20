@@ -32,8 +32,8 @@ async function ensureSettings() {
     ['currency', 'RWF'],
     ['suggested_tips', JSON.stringify(['1000', '2000', '5000', '10000'])],
     ['tip_hint', 'Send a tip via MTN Mobile Money to support live music.'],
-    ['subscription_fee', '22000'],
-    ['subscription_fee_usd', '15'],
+    ['subscription_fee', '7500'],
+    ['subscription_fee_usd', '5'],
     ['usd_rwf_rate', '1469'],
     ['site_logo', '/logo.png'],
     ['site_logo_dark', '/logo-white.png'],
@@ -42,10 +42,16 @@ async function ensureSettings() {
     ['site_name', 'DJLink'],
   ];
 
+  // Billing keys always stay in sync with the product defaults; everything else
+  // is only inserted the first time so the owner's edits are never clobbered.
+  const billingKeys = new Set(['subscription_fee', 'subscription_fee_usd', 'usd_rwf_rate']);
+
   for (const [key, value] of settings) {
     const existing = await get('SELECT id FROM app_settings WHERE key = ?', [key]);
     if (!existing) {
       await run(`INSERT INTO app_settings (key, value) VALUES (?, ?)`, [key, value]);
+    } else if (billingKeys.has(key)) {
+      await run(`UPDATE app_settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?`, [value, key]);
     }
   }
 }
