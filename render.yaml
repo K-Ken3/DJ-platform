@@ -5,7 +5,11 @@ services:
     name: dj-platform-api
     runtime: node
     rootDir: .
-    plan: free
+    # IMPORTANT: Free instances have an EPHEMERAL filesystem and cannot mount a disk.
+    # The SQLite database lives on the disk below, so this service MUST run on Starter
+    # (or higher), otherwise every redeploy/restart recreates the container from scratch
+    # and ALL registered DJ accounts and payments are lost. Starter is $7/month.
+    plan: starter
     disk:
       name: djlink-data
       mountPath: /var/data

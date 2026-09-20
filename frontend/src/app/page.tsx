@@ -11,7 +11,7 @@ import type { PublicDj, RegistrationInfo } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dj-platform.onrender.com';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.djlink.space';
 
 export const metadata: Metadata = {
   title: 'Find DJs in Rwanda, Request Songs Live & Book Events',

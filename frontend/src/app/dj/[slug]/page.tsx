@@ -11,7 +11,7 @@ import type { BlogPost, DjProfile, DjPublicPage, PublicDjEvent } from '@/lib/typ
 
 export const dynamic = 'force-dynamic';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dj-platform.onrender.com';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.djlink.space';
 
 async function getDjPage(slug: string): Promise<DjPublicPage | null> {
   try {

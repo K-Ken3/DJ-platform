@@ -5,7 +5,7 @@ import { BrandingProvider } from '@/lib/branding';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-display' });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dj-platform.onrender.com';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.djlink.space';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

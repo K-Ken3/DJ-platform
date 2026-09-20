@@ -9,7 +9,7 @@ import { BACKEND_URL } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://dj-platform.onrender.com';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.djlink.space';
 
 type Post = {
   id: number;
