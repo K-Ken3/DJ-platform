@@ -71,8 +71,8 @@ app.use(
 );
 app.use(express.json({ limit: '2mb' }));
 
-const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });
-const adminLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });
+const publicLimiter = rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
+const adminLimiter = rateLimit({ windowMs: 60 * 1000, max: 1200, standardHeaders: true, legacyHeaders: false });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -80,7 +80,11 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many attempts. Please try again later.' },
 });
-app.use('/api', publicLimiter);
+const adminApiPrefixes = ['/api/admin', '/api/super'];
+app.use((req, res, next) => {
+  const limiter = adminApiPrefixes.some((prefix) => req.path.startsWith(prefix)) ? adminLimiter : publicLimiter;
+  limiter(req, res, next);
+});
 
 function generateToken(user) {
   return jwt.sign({ id: user.id, email: user.email, role: user.role, status: user.status }, config.jwtSecret, { expiresIn: '7d' });
