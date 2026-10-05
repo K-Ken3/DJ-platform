@@ -56,10 +56,11 @@ export function run(sql, params = []) {
         if (err) return reject(err);
         const row = result && result.rows && result.rows[0];
         resolve({
-          id: row && (row.id || row.inserted_id) !== undefined ? (row.id || row.inserted_id) : (result && result.rows && result.rows[0] && result.rows[0][0]),
+          id: row ? row.id : undefined,
           changes: result && result.rowCount !== undefined ? result.rowCount : 1,
+          row,
         });
-      }).catch ? null : undefined;
+      });
     });
   }
 }
@@ -253,8 +254,8 @@ export function initDb() {
       role TEXT NOT NULL DEFAULT 'DJ',
       status TEXT NOT NULL DEFAULT 'PENDING',
       phone TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+      updated_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
     );
     CREATE TABLE IF NOT EXISTS djs (
       id SERIAL PRIMARY KEY,
@@ -269,8 +270,8 @@ export function initDb() {
       momo_number TEXT,
       momo_ussd TEXT,
       momo_account_name TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+      updated_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
     );
     CREATE TABLE IF NOT EXISTS events (
       id SERIAL PRIMARY KEY,
@@ -280,8 +281,8 @@ export function initDb() {
       event_date TEXT,
       event_code TEXT NOT NULL UNIQUE,
       active INTEGER NOT NULL DEFAULT 1,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+      updated_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
     );
     CREATE TABLE IF NOT EXISTS song_requests (
       id SERIAL PRIMARY KEY,
@@ -290,7 +291,7 @@ export function initDb() {
       song_name TEXT NOT NULL,
       artist_name TEXT,
       status TEXT NOT NULL DEFAULT 'NEW',
-      requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      requested_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
       played_at TEXT,
       rejected_at TEXT
     );
@@ -298,11 +299,11 @@ export function initDb() {
       id SERIAL PRIMARY KEY,
       dj_id INTEGER NOT NULL REFERENCES djs(id),
       event_id INTEGER REFERENCES events(id),
-      amount NUMERIC,
+      amount REAL,
       currency TEXT NOT NULL DEFAULT 'RWF',
       payment_status TEXT NOT NULL DEFAULT 'PENDING',
       transaction_reference TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
     );
     CREATE TABLE IF NOT EXISTS blog_posts (
       id SERIAL PRIMARY KEY,
@@ -315,14 +316,14 @@ export function initDb() {
       category TEXT,
       status TEXT NOT NULL DEFAULT 'DRAFT',
       published_at TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
+      updated_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
     );
     CREATE TABLE IF NOT EXISTS app_settings (
       id SERIAL PRIMARY KEY,
       key TEXT NOT NULL UNIQUE,
       value TEXT NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      updated_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
     );
     CREATE TABLE IF NOT EXISTS booking_messages (
       id SERIAL PRIMARY KEY,
@@ -333,12 +334,12 @@ export function initDb() {
       event_type TEXT,
       event_date TEXT,
       message TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
     );
     CREATE TABLE IF NOT EXISTS subscriptions (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
-      amount NUMERIC,
+      amount REAL,
       currency TEXT NOT NULL DEFAULT 'RWF',
       phone TEXT,
       transaction_reference TEXT,
@@ -346,7 +347,7 @@ export function initDb() {
       status TEXT NOT NULL DEFAULT 'SUBMITTED',
       period_start TEXT,
       period_end TEXT,
-      submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      submitted_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
       verified_at TEXT,
       verified_by INTEGER
     );
@@ -354,10 +355,10 @@ export function initDb() {
       id SERIAL PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
       user_id INTEGER NOT NULL REFERENCES users(id),
-      amount NUMERIC,
+      amount REAL,
       currency TEXT NOT NULL DEFAULT 'RWF',
       status TEXT NOT NULL DEFAULT 'UNUSED',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TEXT NOT NULL DEFAULT (to_char(CURRENT_TIMESTAMP AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
       created_by INTEGER NOT NULL REFERENCES users(id),
       used_at TEXT,
       used_by INTEGER REFERENCES users(id)

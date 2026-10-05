@@ -201,6 +201,13 @@ async function getSubscriptionPeriodEndIso() {
   return new Date(Date.now() + config.subscriptionCutoffMs).toISOString();
 }
 
+// Timestamps are stored as ISO-8601 UTC strings on both SQLite and Postgres,
+// so date windows are computed in JS instead of with driver-specific SQL
+// date functions (SQLite's datetime() does not exist in Postgres).
+function isoDaysAgo(days) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 function isTrialSubscription(subscription) {
   return Boolean(subscription && String(subscription.transaction_reference || '').startsWith('TRIAL'));
 }
@@ -797,9 +804,9 @@ app.get('/api/admin/overview', authMiddleware, requireAdmin, async (req, res) =>
       COUNT(CASE WHEN status = 'NEW' THEN 1 END) AS pending,
       COUNT(CASE WHEN status = 'PLAYED' THEN 1 END) AS songs_played,
       COUNT(CASE WHEN status = 'REJECTED' THEN 1 END) AS rejected,
-      COUNT(CASE WHEN datetime(requested_at) >= datetime('now', 'localtime', '-1 day') THEN 1 END) AS requests_today
+      COUNT(CASE WHEN requested_at >= ? THEN 1 END) AS requests_today
     FROM song_requests WHERE dj_id = ?`,
-    [dj.id]
+    [isoDaysAgo(1), dj.id]
   );
 
   const activeEvent = await get('SELECT * FROM events WHERE dj_id = ? AND active = 1 ORDER BY created_at DESC LIMIT 1', [dj.id]);
@@ -808,8 +815,8 @@ app.get('/api/admin/overview', authMiddleware, requireAdmin, async (req, res) =>
     : { n: 0 };
 
   const recentCount = await get(
-    `SELECT COUNT(*) AS n FROM song_requests WHERE dj_id = ? AND datetime(requested_at) >= datetime('now', 'localtime', '-7 days')`,
-    [dj.id]
+    `SELECT COUNT(*) AS n FROM song_requests WHERE dj_id = ? AND requested_at >= ?`,
+    [dj.id, isoDaysAgo(7)]
   );
 
   const popular = await all(
@@ -820,9 +827,9 @@ app.get('/api/admin/overview', authMiddleware, requireAdmin, async (req, res) =>
 
   const requestsByDay = await all(
     `SELECT substr(requested_at, 1, 10) AS day, COUNT(*) AS n FROM song_requests
-     WHERE dj_id = ? AND datetime(requested_at) >= datetime('now', 'localtime', '-6 days')
+     WHERE dj_id = ? AND requested_at >= ?
      GROUP BY substr(requested_at, 1, 10) ORDER BY day ASC`,
-    [dj.id]
+    [dj.id, isoDaysAgo(6)]
   );
 
   res.json({
@@ -942,8 +949,9 @@ app.get('/api/super/notifications', authMiddleware, requireSuperAdmin, asyncHand
 
   const recent = await all(
     `SELECT id, name, created_at FROM users WHERE role IN ('ADMIN', 'DJ')
-       AND datetime(created_at) >= datetime('now', 'localtime', '-7 days')
-       ORDER BY created_at DESC LIMIT 5`
+       AND created_at >= ?
+       ORDER BY created_at DESC LIMIT 5`,
+    [isoDaysAgo(7)]
   );
   for (const rj of recent) {
     items.push({
@@ -1041,8 +1049,9 @@ app.get('/api/super/stats', authMiddleware, requireSuperAdmin, asyncHandler(asyn
   const requestStats = await get(
     `SELECT
        COUNT(*) AS total_requests,
-       COUNT(CASE WHEN datetime(requested_at) >= datetime('now', 'localtime', '-1 day') THEN 1 END) AS requests_today
-     FROM song_requests`
+       COUNT(CASE WHEN requested_at >= ? THEN 1 END) AS requests_today
+     FROM song_requests`,
+    [isoDaysAgo(1)]
   );
   const subStats = await get(
     `SELECT
@@ -1058,8 +1067,9 @@ app.get('/api/super/stats', authMiddleware, requireSuperAdmin, asyncHandler(asyn
   );
   const requestsByDay = await all(
     `SELECT substr(requested_at, 1, 10) AS day, COUNT(*) AS n FROM song_requests
-     WHERE datetime(requested_at) >= datetime('now', 'localtime', '-6 days')
-     GROUP BY substr(requested_at, 1, 10) ORDER BY day ASC`
+     WHERE requested_at >= ?
+     GROUP BY substr(requested_at, 1, 10) ORDER BY day ASC`,
+    [isoDaysAgo(6)]
   );
   const revenueRow = await get(
     "SELECT COUNT(*) AS paid_months, COALESCE(SUM(amount), 0) AS revenue_total FROM subscriptions WHERE status = 'VERIFIED'"

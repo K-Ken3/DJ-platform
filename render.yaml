@@ -14,7 +14,8 @@ services:
       name: djlink-data
       mountPath: /var/data
       sizeGB: 1
-    buildCommand: npm install
+    # Must install BOTH workspaces: the root (concurrently) and backend (express, pg, ...).
+    buildCommand: npm install && npm --prefix backend install
     startCommand: npm --prefix backend run start
     envVars:
       - key: NODE_ENV
