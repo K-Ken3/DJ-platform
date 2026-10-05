@@ -1,5 +1,23 @@
 export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
+// Free hosting instances sleep when idle and need ~30-60s to wake up, which makes
+// the browser abort the very first fetch with an opaque "Failed to fetch".
+// Retry a few times before giving up, then report it in plain language.
+const NETWORK_ERROR =
+  "Can't reach the server right now. It may be waking up after being idle — please wait a moment and try again.";
+
+async function request(url: string, init: RequestInit, attempt = 0): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    if (attempt >= 2) {
+      throw new Error(NETWORK_ERROR);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+    return request(url, init, attempt + 1);
+  }
+}
+
 export async function api<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -11,7 +29,7 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BACKEND_URL}${path}`, { ...options, headers });
+  const res = await request(`${BACKEND_URL}${path}`, { ...options, headers });
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -34,7 +52,7 @@ export async function downloadCsv(path: string, filename: string): Promise<void>
     const token = localStorage.getItem('dj_token');
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(`${BACKEND_URL}${path}`, { headers });
+  const res = await request(`${BACKEND_URL}${path}`, { headers });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error((data as { error?: string }).error || 'Export failed.');
