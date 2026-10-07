@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/site/Logo';
 import { BrandingTab } from '@/components/admin/BrandingTab';
-import { api, downloadCsv } from '@/lib/api';
+import { ApiError, api, downloadCsv } from '@/lib/api';
 import type { NotificationItem, SuperDj, SuperRenewal, SuperStats, SubscriptionRecord } from '@/lib/types';
 
 type TabId = 'overview' | 'djs' | 'payments' | 'notifications' | 'branding';
@@ -80,6 +80,8 @@ export default function SuperAdminPage() {
   const [filter, setFilter] = useState<'ALL' | 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED'>('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [retryTick, setRetryTick] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -109,10 +111,20 @@ export default function SuperAdminPage() {
       router.push('/admin/login');
       return;
     }
+    setLoadError('');
     load()
-      .catch(() => router.push('/admin/login'))
+      .catch((err) => {
+        // Only an expired session may send you back to login; a failing endpoint
+        // must not silently throw the owner out of the console.
+        const status = err instanceof ApiError ? err.status : 0;
+        if (status === 401 || status === 403) {
+          router.push('/admin/login');
+          return;
+        }
+        setLoadError(err instanceof Error ? err.message : 'Something went wrong while loading the console.');
+      })
       .finally(() => setLoading(false));
-  }, [load, router]);
+  }, [load, router, retryTick]);
 
   useEffect(() => {
     window.history.replaceState(null, '', `#${tab}`);
@@ -153,6 +165,47 @@ export default function SuperAdminPage() {
     return (
       <main className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-zinc-500">Loading DJLink owner console...</p>
+      </main>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-100 px-4 py-12 dark:bg-zinc-950">
+        <div className="w-full max-w-md">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <Logo className="h-8 w-auto" />
+              <div className="leading-tight">
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">Owner console</p>
+                <p className="text-sm font-extrabold">{ownerName}</p>
+              </div>
+            </div>
+            <button type="button" className="btn-ghost" onClick={logout}>
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="card card-pad text-center">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-8 w-8" />
+            </span>
+            <h1 className="mt-4 text-xl font-extrabold tracking-tight">Could not load the console</h1>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{loadError}</p>
+            <p className="mt-1 text-xs text-zinc-400">You are still signed in — nothing was lost.</p>
+            <button
+              type="button"
+              className="btn-primary btn-lg mt-6"
+              onClick={() => {
+                setLoading(true);
+                setRetryTick((value) => value + 1);
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Try again
+            </button>
+          </div>
+        </div>
       </main>
     );
   }

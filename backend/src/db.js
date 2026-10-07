@@ -113,6 +113,93 @@ async function pgExec(sql) {
   }
 }
 
+const PG_TYPE_MAP = { TEXT: 'text', REAL: 'real', INTEGER: 'integer', SERIAL: 'integer' };
+
+// Reads the expected columns straight out of the schema string so this list can
+// never drift away from CREATE TABLE again.
+function parsePgSchema(schemaSql) {
+  const expected = [];
+  const statements = schemaSql.split(';').map((s) => s.trim()).filter(Boolean);
+  for (const statement of statements) {
+    const match = statement.match(/^CREATE TABLE IF NOT EXISTS (\w+)\s*\(([\s\S]*)\)\s*$/i);
+    if (!match) continue;
+    const table = match[1];
+    let depth = 0;
+    let buffer = '';
+    for (const ch of match[2]) {
+      if (ch === ',' && depth === 0) {
+        if (buffer.trim()) expected.push({ table, definition: buffer.trim() });
+        buffer = '';
+        continue;
+      }
+      if (ch === '(') depth += 1;
+      else if (ch === ')') depth -= 1;
+      buffer += ch;
+    }
+    if (buffer.trim()) expected.push({ table, definition: buffer.trim() });
+  }
+  return expected;
+}
+
+function castTo(column, fromType, toType) {
+  if (toType === 'text') {
+    if (fromType === 'timestamp with time zone') return `to_char(${column} AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+    if (fromType === 'timestamp without time zone') return `to_char(${column}, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+    if (fromType === 'date') return `to_char(${column}, 'YYYY-MM-DD')`;
+    return `CAST(${column} AS text)`;
+  }
+  if (toType === 'real') return fromType === 'boolean' ? `CASE WHEN ${column} THEN 1 ELSE 0 END` : `CAST(${column} AS real)`;
+  return `CAST(${column} AS integer)`;
+}
+
+// Tables created by an older version of this file are never touched again by
+// CREATE TABLE IF NOT EXISTS, so production can hold columns the current code
+// no longer understands (timestamps instead of TEXT, numerics instead of REAL).
+// This brings them back to the declared types on every boot. Each change is its
+// own statement, and a failure is logged instead of blocking startup.
+async function alignPgSchema(schemaSql) {
+  const expected = parsePgSchema(schemaSql);
+  if (!expected.length) return;
+
+  const actual = await all(
+    "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public'"
+  );
+  const actualTypes = new Map(actual.map((row) => [`${row.table_name}.${row.column_name}`, row.data_type]));
+
+  for (const { table, definition } of expected) {
+    const header = definition.match(/^(\w+)\s+(\w+)/);
+    if (!header) continue;
+    const column = header[1];
+    const wanted = PG_TYPE_MAP[header[2].toUpperCase()];
+    if (!wanted) continue;
+    const key = `${table}.${column}`;
+    const current = actualTypes.get(key);
+    const defaultExpr = (definition.match(/\bDEFAULT\s+([\s\S]+)$/i) || [])[1];
+
+    if (!current) {
+      if (column === 'id') continue;
+      try {
+        await pgExec(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${definition}`);
+        console.log(`[schema] added ${key}`);
+      } catch (e) {
+        console.error(`[schema] could not add ${key}: ${e.message}`);
+      }
+      continue;
+    }
+
+    if (current === wanted) continue;
+
+    try {
+      await pgExec(`ALTER TABLE ${table} ALTER COLUMN ${column} DROP DEFAULT`);
+      await pgExec(`ALTER TABLE ${table} ALTER COLUMN ${column} TYPE ${wanted} USING (${castTo(column, current, wanted)})`);
+      if (defaultExpr) await pgExec(`ALTER TABLE ${table} ALTER COLUMN ${column} SET DEFAULT ${defaultExpr.trim()}`);
+      console.log(`[schema] aligned ${key}: ${current} -> ${wanted}`);
+    } catch (e) {
+      console.error(`[schema] could not align ${key}: ${e.message}`);
+    }
+  }
+}
+
 export function initDb() {
   const schemaSqlite = `
     CREATE TABLE IF NOT EXISTS users (
@@ -435,6 +522,7 @@ export function initDb() {
         []
       );
       if (!hasSubEnd) await pgExec("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS period_end TEXT");
+      await alignPgSchema(schemaPg);
     })();
   }
 }

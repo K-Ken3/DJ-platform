@@ -32,7 +32,7 @@ import { MessagesTab } from '@/components/admin/MessagesTab';
 import { ProfileTab } from '@/components/admin/ProfileTab';
 import { SettingsTab } from '@/components/admin/SettingsTab';
 import { NotificationsPanel } from '@/components/admin/NotificationsPanel';
-import { BACKEND_URL, api } from '@/lib/api';
+import { ApiError, BACKEND_URL, api } from '@/lib/api';
 import { playNotificationSound } from '@/lib/sound';
 import type { DayCount, EventItem, Overview, RegistrationInfo, RequestItem, SongCount, SubscriptionRecord, SubscriptionState } from '@/lib/types';
 
@@ -84,6 +84,8 @@ export default function AdminDashboardPage() {
   const [registrationInfo, setRegistrationInfo] = useState<RegistrationInfo | null>(null);
   const [popular, setPopular] = useState<SongCount[]>([]);
   const [requestsByDay, setRequestsByDay] = useState<DayCount[]>([]);
+  const [loadError, setLoadError] = useState('');
+  const [retryTick, setRetryTick] = useState(0);
 
   const pushToast = useCallback((title: string, body: string) => {
     const id = Date.now() + Math.random();
@@ -115,6 +117,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!token) return;
+    setLoadError('');
     api<{ user: { role: string; status: string; name: string }; subscription: SubscriptionRecord | null; subscription_state?: SubscriptionState | null }>('/api/auth/me')
       .then(async (me) => {
         if (me.user.role === 'SUPERADMIN') {
@@ -138,8 +141,18 @@ export default function AdminDashboardPage() {
         await loadDashboard();
         setLoading(false);
       })
-      .catch(() => router.push('/admin/login'));
-  }, [token, loadDashboard, router]);
+      .catch((err) => {
+        // 401/403 means the session really ended. Anything else is a server
+        // hiccup — show it instead of silently bouncing the DJ to login.
+        const status = err instanceof ApiError ? err.status : 0;
+        if (status === 401 || status === 403) {
+          router.push('/admin/login');
+          return;
+        }
+        setLoadError(err instanceof Error ? err.message : 'Something went wrong while loading your dashboard.');
+        setLoading(false);
+      });
+  }, [token, loadDashboard, router, retryTick]);
 
   function refreshStatus() {
     setLoading(true);
@@ -256,6 +269,47 @@ export default function AdminDashboardPage() {
     return (
       <main className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-zinc-500">Loading dashboard...</p>
+      </main>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-100 px-4 py-12 dark:bg-zinc-950">
+        <div className="w-full max-w-md">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <Logo className="h-8 w-auto" />
+              <div className="leading-tight">
+                <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">DJ Admin</p>
+                <p className="text-sm font-extrabold">{djName}</p>
+              </div>
+            </div>
+            <button type="button" className="btn-ghost" onClick={logout}>
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="card card-pad text-center">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <ShieldAlert className="h-8 w-8" />
+            </span>
+            <h1 className="mt-4 text-xl font-extrabold tracking-tight">Could not load your dashboard</h1>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{loadError}</p>
+            <p className="mt-1 text-xs text-zinc-400">You are still signed in — nothing was lost.</p>
+            <button
+              type="button"
+              className="btn-primary btn-lg mt-6"
+              onClick={() => {
+                setLoading(true);
+                setRetryTick((value) => value + 1);
+              }}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Try again
+            </button>
+          </div>
+        </div>
       </main>
     );
   }

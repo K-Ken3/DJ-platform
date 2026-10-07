@@ -734,7 +734,7 @@ app.get('/api/requests', authMiddleware, requireAdmin, async (req, res) => {
   }
 
   if (date && String(date).trim()) {
-    clauses.push(`substr(sr.requested_at, 1, 10) = ?`);
+    clauses.push(`substr(CAST(sr.requested_at AS TEXT), 1, 10) = ?`);
     params.push(String(date).trim());
   }
 
@@ -826,9 +826,9 @@ app.get('/api/admin/overview', authMiddleware, requireAdmin, async (req, res) =>
   );
 
   const requestsByDay = await all(
-    `SELECT substr(requested_at, 1, 10) AS day, COUNT(*) AS n FROM song_requests
+    `SELECT substr(CAST(requested_at AS TEXT), 1, 10) AS day, COUNT(*) AS n FROM song_requests
      WHERE dj_id = ? AND requested_at >= ?
-     GROUP BY substr(requested_at, 1, 10) ORDER BY day ASC`,
+     GROUP BY substr(CAST(requested_at AS TEXT), 1, 10) ORDER BY day ASC`,
     [dj.id, isoDaysAgo(6)]
   );
 
@@ -1066,13 +1066,13 @@ app.get('/api/super/stats', authMiddleware, requireSuperAdmin, asyncHandler(asyn
      FROM song_requests GROUP BY song_name, artist_name ORDER BY times DESC LIMIT 10`
   );
   const requestsByDay = await all(
-    `SELECT substr(requested_at, 1, 10) AS day, COUNT(*) AS n FROM song_requests
+    `SELECT substr(CAST(requested_at AS TEXT), 1, 10) AS day, COUNT(*) AS n FROM song_requests
      WHERE requested_at >= ?
-     GROUP BY substr(requested_at, 1, 10) ORDER BY day ASC`,
+     GROUP BY substr(CAST(requested_at AS TEXT), 1, 10) ORDER BY day ASC`,
     [isoDaysAgo(6)]
   );
   const revenueRow = await get(
-    "SELECT COUNT(*) AS paid_months, COALESCE(SUM(amount), 0) AS revenue_total FROM subscriptions WHERE status = 'VERIFIED'"
+    "SELECT COUNT(*) AS paid_months, COALESCE(SUM(CAST(amount AS REAL)), 0) AS revenue_total FROM subscriptions WHERE status = 'VERIFIED'"
   );
 
   const activeDjs = await all(
@@ -1161,7 +1161,7 @@ app.get('/api/super/renewals', authMiddleware, requireSuperAdmin, asyncHandler(a
     `SELECT u.id, u.name, u.email, u.role, u.status, u.phone, d.slug
      FROM users u LEFT JOIN djs d ON d.user_id = u.id
      WHERE u.role IN ('ADMIN', 'DJ') AND u.status = 'ACTIVE'
-     ORDER BY u.name COLLATE NOCASE ASC`
+     ORDER BY LOWER(u.name) ASC`
   );
 
   const renewals = [];

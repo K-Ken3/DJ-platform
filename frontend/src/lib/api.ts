@@ -21,6 +21,18 @@ const SLOW_AFTER_MS = 2000;
 // but these only read/check and create nothing, so replaying them is harmless.
 const REPLAYABLE_POSTS = ['/api/auth/login', '/api/auth/me'];
 
+// Carries the HTTP status so callers can tell "your session ended" (401/403,
+// which should log you out) apart from "the server hiccuped" (which should not).
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 type WaitCtx = { woke: boolean };
 
 let pending = 0;
@@ -117,7 +129,7 @@ async function replayingRequest(
   } catch {
     // The connection dropped: the app may already have processed the request, so
     // only replay reads. Replaying a write here could duplicate data.
-    if (!safeMethod || attempt >= WAIT_MS.length) throw new Error(NETWORK_ERROR);
+    if (!safeMethod || attempt >= WAIT_MS.length) throw new ApiError(NETWORK_ERROR, 0);
     beginWake(ctx, attempt);
     await sleep(WAIT_MS[attempt]);
     return replayingRequest(url, init, attempt + 1, safeMethod, ctx);
@@ -164,7 +176,10 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || 'Something went wrong. Please try again.');
+    throw new ApiError(
+      (data as { error?: string }).error || 'Something went wrong. Please try again.',
+      res.status
+    );
   }
   return data as T;
 }
