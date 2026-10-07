@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { BrandingProvider } from '@/lib/branding';
+import { WakeCounter } from '@/components/WakeCounter';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-display' });
 
@@ -74,6 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${inter.variable} font-display`}>
         <BrandingProvider>{children}</BrandingProvider>
+        <WakeCounter />
       </body>
     </html>
   );

@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MapPin, Search } from 'lucide-react';
 import { Logo } from '@/components/site/Logo';
+import { api } from '@/lib/api';
 import type { PublicDj } from '@/lib/types';
 
 function isBrandLogo(logo?: string | null) {
@@ -29,20 +30,45 @@ function DjLogo({ dj }: { dj: PublicDj }) {
 
 export function DjDirectory({ djs }: { djs: PublicDj[] }) {
   const [query, setQuery] = useState('');
+  // Server-side render can hit a sleeping API and come back empty even when DJs
+  // exist. Refetch through the retry wrapper so the directory fills itself in
+  // instead of showing a wrong "0 DJs" page.
+  const [items, setItems] = useState<PublicDj[]>(djs);
+  const [checking, setChecking] = useState(djs.length === 0);
+
+  useEffect(() => {
+    if (djs.length > 0) return;
+    let cancelled = false;
+    api<{ djs?: PublicDj[] }>('/api/djs/public')
+      .then((data) => {
+        if (!cancelled && data.djs?.length) setItems(data.djs);
+      })
+      .catch(() => {
+        // Still unreachable — keep the empty state for a manual refresh.
+      })
+      .finally(() => {
+        if (!cancelled) setChecking(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [djs]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return djs;
-    return djs.filter((dj) =>
+    if (!q) return items;
+    return items.filter((dj) =>
       [dj.name, dj.tagline, dj.location].filter(Boolean).some((value) => String(value).toLowerCase().includes(q))
     );
-  }, [djs, query]);
+  }, [items, query]);
 
   return (
     <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {djs.length} {djs.length === 1 ? 'DJ' : 'DJs'} available
+          {checking
+            ? 'Looking up DJs…'
+            : `${items.length} ${items.length === 1 ? 'DJ' : 'DJs'} available`}
         </p>
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -59,13 +85,15 @@ export function DjDirectory({ djs }: { djs: PublicDj[] }) {
 
       {filtered.length === 0 ? (
         <div className="card card-pad py-14 text-center">
-          <p className="text-lg font-bold">No DJs found</p>
+          <p className="text-lg font-bold">{checking ? 'Checking the directory…' : 'No DJs found'}</p>
           <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-            {djs.length === 0
-              ? 'Be the first DJ on DJLink and start taking live requests.'
-              : 'Try a different search term.'}
+            {checking
+              ? 'One moment while we connect.'
+              : items.length === 0
+                ? 'Be the first DJ on DJLink and start taking live requests.'
+                : 'Try a different search term.'}
           </p>
-          {djs.length === 0 && (
+          {!checking && items.length === 0 && (
             <Link href="/admin/register" className="btn-primary mt-6">
               Join as a DJ
             </Link>

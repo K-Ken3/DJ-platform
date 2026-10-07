@@ -217,3 +217,18 @@ label {
   border: 2px solid transparent;
   background-clip: content-box;
 }
+
+/* Indeterminate slide for the "still working on it" connection pill */
+.wake-indicator {
+  width: 35%;
+  animation: wake-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes wake-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(330%);
+  }
+}
